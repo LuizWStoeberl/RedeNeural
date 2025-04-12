@@ -1,0 +1,29 @@
+body {
+    background-color: rgb(58, 57, 58);
+}
+
+.titulo {
+    display: flex;
+    justify-content: center;
+    color: rgb(255, 255, 255);
+    margin-top: 100px;
+}
+
+.botao-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;              
+    height: 80vh;      
+    flex-direction: column;
+}
+
+.botao {
+    padding: 48px 96px;
+    font-size: 16px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
