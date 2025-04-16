@@ -27,3 +27,14 @@ body {
     border-radius: 8px;
     cursor: pointer;
 }
+
+.pixelAll {
+    display: flex;
+    justify-content: center;
+    border: black;
+    border-radius: 8px;
+}
+
+.formularioCores {
+    padding: 10px;
+}
