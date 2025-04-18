@@ -38,3 +38,15 @@ body {
 .formularioCores {
     padding: 10px;
 }
+
+.grupo {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.grupo div {
+    display: inline-flex;
+    gap: 10px;
+}
