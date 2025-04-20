@@ -1,32 +1,35 @@
-from main import app
-from flask import render_template, request
+from flask import Blueprint, render_template, request, jsonify
+from RedeNeural.models import db, Treinamento
+from datetime import datetime
 import os
+
+bp = Blueprint("routes", __name__)
 
 ARQUIVOS_DIR = 'arquivos'
 if not os.path.exists(ARQUIVOS_DIR):
     os.makedirs(ARQUIVOS_DIR)
 
-@app.route("/")
+@bp.route("/")
 def home():
    return render_template("home.html")
 
-@app.route("/templates/rede1.html")
+@bp.route("/templates/rede1.html")
 def rede1():
    return render_template("rede1.html")
 
-@app.route("/templates/rede2.html")
+@bp.route("/templates/rede2.html")
 def rede2():
    return render_template("rede2.html")
 
-@app.route("/templates/variaveisRede1.html")
+@bp.route("/templates/variaveisRede1.html")
 def variaveisRede1():
    return render_template("variaveisRede1.html")
 
-@app.route("/templates/variaveisRede2.html")
+@bp.route("/templates/variaveisRede2.html")
 def variaveisRede2():
    return render_template("variaveisRede2.html")
 
-@app.route('/salvar', methods=['POST'])
+@bp.route('/salvar', methods=['POST'])
 def salvar():
     dados = request.json
     linha_count = dados.get("linhaCount", 0)
@@ -34,7 +37,7 @@ def salvar():
     cores = dados.get("cores", [])
     labels = dados.get("labels", []) 
 
-    nome_arquivo = f"tabela_cores_{linha_count}.csv"
+    nome_arquivo = f"tabela_cores_{linha_count}_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
     caminho_arquivo = os.path.join(ARQUIVOS_DIR, nome_arquivo)
 
     with open(caminho_arquivo, 'w') as f:
