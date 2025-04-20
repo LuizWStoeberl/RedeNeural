@@ -5,50 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" href="../static/styles.css">
-    <script>
-        let contador = 0;
-        
-            function adicionarCampo(){
-                contador ++
-                const container = document.getElementById("informacoes");
-                
-                const novoGrupo = document.createElement("div");
-                novoGrupo.classList.add("grupo")
-
-                const idColor = `cor${contador}`
-                const idHexa = `hexa${contador}`
-
-                novoGrupo.innerHTML = `  
-                    <div>
-                        <label ></label>
-                        <input type="color" id="${idColor}" value="#000000"
-                        <label> </label>
-                        <input type="text" id="${idHexa}" readonly>
-                    </div>
-                `;
-                container.appendChild(novoGrupo);
-                
-                const corInput = document.getElementById(idColor);
-                const hexaInput = document.getElementById(idHexa);
-                hexaInput.value = corInput.value;
-
-                corInput.addEventListener("input", () =>{
-                    hexaInput.value = corInput.value;
-                })
-            }
-    </script>
 </head>
 <body>
     <h1 class="titulo">Você esta na Rede 1. Escolha os pixels</h1>
-
-    <div class="pixelAll">
-        <div class="formularioCores" id="informacoes">
-            
-        </div>
+    
+        <div id="controle">
 
         
-    </div>
-    <button onclick="adicionarCampo()">Pixels</button>
+        <label for="quantidade">Quantos pixels você deseja colocar?</label>
+        <input type="number" id="quantidade" min="2" value="1">
+        <button onclick="definirQuantidade()">Confirmar</button>
+        <button onclick="adicionarLinha()" disabled id="btnNovaLinha">Adicionar nova linha</button>
+
+        </div>
+
+        <div id="informacoes"></div>
+        <button onclick="enviarDados()">Salvar tabela</button>
     <div>
         <a href="/templates/variaveisRede1.html">
             <button>Próximo</button>
@@ -60,5 +32,7 @@
             <button>Voltar</button>
         </a>
     </div>
+
+    <script src="/static/script.js"></script>
 </body>
 </html>

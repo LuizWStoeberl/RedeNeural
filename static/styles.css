@@ -28,13 +28,6 @@ body {
     cursor: pointer;
 }
 
-.pixelAll {
-    display: flex;
-    justify-content: center;
-    border: black;
-    border-radius: 8px;
-}
-
 .formularioCores {
     padding: 10px;
 }
@@ -49,4 +42,8 @@ body {
 .grupo div {
     display: inline-flex;
     gap: 10px;
+}
+
+.grupo label {
+    min-width: 80px;
 }
