@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 
 from teste import processar_dados
+from rede_neural import treinar_rede_neural
 
 bp = Blueprint("routes", __name__)
 
@@ -79,3 +80,12 @@ def upload():
         arquivo.save(caminho)
 
     return 'Arquivos enviados com sucesso!'
+
+@bp.route("/treinar", methods=["POST"])
+def treinar():
+    try:
+        from rede_neural import treinar_rede_neural
+        acc, cm = treinar_rede_neural()
+        return jsonify({"mensagem": "Treinamento concluido", "acuracia": acc})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
