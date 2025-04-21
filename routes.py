@@ -73,7 +73,7 @@ def upload():
     for arquivo in arquivos:
         caminho = os.path.join(UPLOAD_FOLDER, arquivo.filename)
 
-        # Cria subpastas se necessário
+
         os.makedirs(os.path.dirname(caminho), exist_ok=True)
         
         arquivo.save(caminho)
