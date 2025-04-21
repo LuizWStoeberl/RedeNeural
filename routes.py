@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify
-from RedeNeural.models import db, Treinamento
+from models import db, Treinamento
 from datetime import datetime
 import os
+
+from teste import processar_dados
 
 bp = Blueprint("routes", __name__)
 
@@ -24,6 +26,16 @@ def rede2():
 @bp.route("/templates/variaveisRede1.html")
 def variaveisRede1():
    return render_template("variaveisRede1.html")
+
+@bp.route('/enviar', methods=['POST'])
+def processar():
+   epoca = request.form['epoca']
+   neuronios = request.form['neuronios']
+   enlaces = request.form['enlaces']
+
+   processar_dados(epoca, neuronios, enlaces)   
+
+   return "Deu certo!"
 
 @bp.route("/templates/variaveisRede2.html")
 def variaveisRede2():
@@ -49,3 +61,6 @@ def salvar():
             f.write(linha_formatada)
 
     return {'message': 'Arquivo salvo com sucesso!'}
+
+
+

@@ -1,8 +1,8 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from RedeNeural.config import Config
+from config import Config
 from routes import bp as routes_bp
-from RedeNeural.models import db
+from models import db
 
 app = Flask(__name__)
 app.config.from_object(Config)
