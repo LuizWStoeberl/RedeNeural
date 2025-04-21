@@ -11,6 +11,9 @@ ARQUIVOS_DIR = 'arquivos'
 if not os.path.exists(ARQUIVOS_DIR):
     os.makedirs(ARQUIVOS_DIR)
 
+UPLOAD_FOLDER = "arquivoUsuario"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 @bp.route("/")
 def home():
    return render_template("home.html")
@@ -55,7 +58,7 @@ def salvar():
     with open(caminho_arquivo, 'w') as f:
         header = [f"Cor{i+1}" for i in range(quantidade_por_linha)] + ["Classe"]
         f.write(','.join(header) + '\n')
-
+ 
         for linha_cores, classe in zip(cores, labels):
             linha_formatada = ','.join(linha_cores) + f",{classe}\n"
             f.write(linha_formatada)
@@ -63,4 +66,16 @@ def salvar():
     return {'message': 'Arquivo salvo com sucesso!'}
 
 
+@bp.route('/upload', methods=['POST'])
+def upload():
+    arquivos = request.files.getlist('arquivos')
 
+    for arquivo in arquivos:
+        caminho = os.path.join(UPLOAD_FOLDER, arquivo.filename)
+
+        # Cria subpastas se necessário
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        
+        arquivo.save(caminho)
+
+    return 'Arquivos enviados com sucesso!'

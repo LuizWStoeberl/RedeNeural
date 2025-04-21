@@ -8,6 +8,13 @@
 </head>
 <body>
     <h1 class="titulo">Você esta na rede 2. Escolha as classes</h1>
+    <p>Lembre de adicionar imagens jpg na sua pasta</p>
+    <div>
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="arquivos" multiple webkitdirectory directory>
+            <button type="submit">Enviar</button>
+        </form>
+    </div>
 
     <div>
         <a href="/templates/variaveisRede2.html">
