@@ -10,10 +10,12 @@ import seaborn as sns
 from models import Treinamento
 from models import db
 
+from routes import *
+
 def get_ultimo_treinamento():
     return Treinamento.query.order_by(Treinamento.id.desc()).first()
 
-def treinar_rede_neural():
+def treinar_rede_neural(epocas, neuronios, enlaces):
     arquivos_dir = "arquivos"
     arquivos_csv = [f for f in os.listdir(arquivos_dir) if f.endswith(".csv")]
     arquivos_csv.sort(reverse=True)

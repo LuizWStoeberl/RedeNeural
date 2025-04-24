@@ -4,7 +4,6 @@ from datetime import datetime
 import os
 
 from teste import processar_dados
-from rede_neural import treinar_rede_neural
 
 bp = Blueprint("routes", __name__)
 
@@ -33,11 +32,11 @@ def variaveisRede1():
 
 @bp.route('/enviar', methods=['POST'])
 def processar():
-   epoca = request.form['epoca']
+   epocas = request.form['epocas']
    neuronios = request.form['neuronios']
    enlaces = request.form['enlaces']
 
-   processar_dados(epoca, neuronios, enlaces)   
+   processar_dados(epocas, neuronios, enlaces)   
 
    return "Deu certo!"
 
