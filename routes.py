@@ -142,3 +142,25 @@ def treinar_cnn():
         return jsonify({"mensagem": "CNN treinada com sucesso", "acuracia": acc})
     except Exception as e:
         return jsonify({"erro": str(e)}), 400    
+    
+@bp.route('/listar_treinamentos', methods=['GET'])
+def listar_treinamentos():
+    treinamentos = Treinamento.query.order_by(Treinamento.id.desc()).all()
+    return jsonify([t.to_dict() for t in treinamentos])
+
+@bp.route("/teste_salvar", methods=["GET"])
+def teste_salvar():
+    novo = Treinamento(epocas=5, neuronios=32, enlaces=2)
+    db.session.add(novo)
+    db.session.commit()
+    return jsonify({"mensagem": "Salvo com sucesso!", "id": novo.id})
+
+@bp.route("/criar_usuario", methods=["GET"])
+def criar_usuario():
+    from models import Usuario, db
+
+    novo_usuario = Usuario(nome="Usuário Teste", email="teste@exemplo.com")
+    db.session.add(novo_usuario)
+    db.session.commit()
+
+    return jsonify({"mensagem": "Usuário criado com sucesso!", "id": novo_usuario.id})

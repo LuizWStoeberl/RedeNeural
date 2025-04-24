@@ -45,6 +45,16 @@ def processar_dados(epocas, neuronios, enlaces):
     # Treina usando os dados passados
     acc, cm = treinar_rede_neural(X_treinamento, y_treinamento, epocas, neuronios, enlaces)
 
+    novo_treinamento = Treinamento(
+       epocas=epocas,
+        neuronios=neuronios,
+        enlaces=enlaces,
+        resultado=f"{acc:.4f}",        # Salvar como string, se quiser salvar como número, mude o tipo no model
+        usuario_id=1
+    )
+    db.session.add(novo_treinamento)
+    db.session.commit()
+
     return acc, cm
 
 

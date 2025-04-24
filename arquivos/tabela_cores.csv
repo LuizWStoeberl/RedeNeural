@@ -1,7 +1,5 @@
-Cor1,Cor2,Cor3,Cor4,Cor5,Cor6,Classe
-#ff0000,#ff0000,#eb0000,#000000,#050505,#000000,Bart
-#fb8383,#ff0000,#f46c6c,#000000,#000000,#000000,Bart
-#ffffff,#ff9e9e,#ff0000,#3e2323,#000000,#000000,Bart
-#ff0000,#ff0000,#ff0000,#301212,#865b5b,#201818,Homer
-#000000,#000000,#000000,#efe1e1,#f59e9e,#eb0000,Homer
-#2f1818,#000000,#000000,#ff0000,#ec6f6f,#ffb8b8,Homer
+Cor1,Cor2,Cor3,Cor4,Classe
+#ca6868,#c86a6a,#514d4d,#d69e9e,Classe 1
+#ba0808,#d6aeae,#bc5c5c,#e2d0d0,Classe 2
+#f09494,#682727,#652424,#472424,Classe 3
+#f8cece,#000000,#1b1818,#d0b3b3,Classe 4
