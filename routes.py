@@ -89,3 +89,12 @@ def treinar():
         return jsonify({"mensagem": "Treinamento concluido", "acuracia": acc})
     except Exception as e:
         return jsonify({"erro": str(e)}), 400
+    
+@bp.route("/treinar_cnn", methods=["POST"])
+def treinar_cnn():
+    try:
+        from cnn_model import treinar_cnn
+        acc, cm = treinar_cnn()
+        return jsonify({"mensagem": "CNN treinada com sucesso", "acuracia": acc})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400    
