@@ -5,16 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" href="../static/styles.css">
+    <script>
+        function adicionarClasse() {
+            const container = document.getElementById('classes-container');
+
+            const novaClasse = document.createElement('div');
+            novaClasse.classList.add('classe-bloco');
+
+            novaClasse.innerHTML = `
+                <hr>
+                <label>Nome da Classe:</label>
+                <input type="text" name="classes[]" required>
+                <br>
+                <label>Arquivos:</label>
+                <input type="file" name="arquivos[]" multiple required>
+                <br><br>
+            `;
+
+            container.appendChild(novaClasse);
+        }
+    </script>
 </head>
 <body>
     <h1 class="titulo">Você esta na rede 2. Escolha as classes</h1>
     <p>Lembre de adicionar imagens jpg na sua pasta</p>
-    <div>
-        <form action="/upload" method="POST" enctype="multipart/form-data">
-            <input type="file" name="arquivos" multiple webkitdirectory directory>
-            <button type="submit">Enviar</button>
-        </form>
-    </div>
+    <form method="POST" action="/upload_classes" enctype="multipart/form-data">
+        <div id="classes-container">
+            <!-- Classe inicial -->
+            <div class="classe-bloco">
+                <label>Nome da Classe:</label>
+                <input type="text" name="classes[]" required>
+                <br>
+                <label>Arquivos:</label>
+                <input type="file" name="arquivos[]" multiple required>
+                <br><br>
+            </div>
+        </div>
+        <button type="button" onclick="adicionarClasse()">+ Adicionar Nova Classe</button>
+        <br><br>
+        <button type="submit">Enviar Todas</button>
 
     <div>
         <a href="/templates/variaveisRede2.html">

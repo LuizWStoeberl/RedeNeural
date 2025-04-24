@@ -3,16 +3,25 @@ from models import db, Treinamento
 from datetime import datetime
 import os
 
-from teste import processar_dados
-
 bp = Blueprint("routes", __name__)
 
 ARQUIVOS_DIR = 'arquivos'
 if not os.path.exists(ARQUIVOS_DIR):
     os.makedirs(ARQUIVOS_DIR)
 
+
 UPLOAD_FOLDER = "arquivoUsuario"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+def criar_nova_pasta_teste(base_dir):
+    i = 1
+    while True:
+        nome_pasta = f"Teste{i}"
+        caminho_completo = os.path.join(base_dir, nome_pasta)
+        if not os.path.exists(caminho_completo):
+            os.makedirs(caminho_completo)
+            return caminho_completo
+        i += 1
+
 
 @bp.route("/")
 def home():
@@ -32,17 +41,14 @@ def variaveisRede1():
 
 @bp.route('/enviar', methods=['POST'])
 def processar():
-   epocas = request.form['epocas']
-   neuronios = request.form['neuronios']
-   enlaces = request.form['enlaces']
+    epocas = int(request.form['epocas'])
+    neuronios = int(request.form['neuronios'])
+    enlaces = int(request.form['enlaces'])
 
-   processar_dados(epocas, neuronios, enlaces)   
+    from rede_neural import processar_dados
+    acc, cm = processar_dados(epocas, neuronios, enlaces)
 
-   return "Deu certo!"
-
-@bp.route("/templates/variaveisRede2.html")
-def variaveisRede2():
-   return render_template("variaveisRede2.html")
+    return jsonify({"mensagem": "Treinamento concluído", "acuracia": acc, "matriz_confusao": cm.tolist()})
 
 @bp.route('/salvar', methods=['POST'])
 def salvar():
@@ -52,7 +58,7 @@ def salvar():
     cores = dados.get("cores", [])
     labels = dados.get("labels", []) 
 
-    nome_arquivo = f"tabela_cores_{linha_count}_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
+    nome_arquivo = "tabela_cores.csv"  # Nome fixo aqui!
     caminho_arquivo = os.path.join(ARQUIVOS_DIR, nome_arquivo)
 
     with open(caminho_arquivo, 'w') as f:
@@ -66,19 +72,58 @@ def salvar():
     return {'message': 'Arquivo salvo com sucesso!'}
 
 
-@bp.route('/upload', methods=['POST'])
-def upload():
-    arquivos = request.files.getlist('arquivos')
+@bp.route('/formulario_classes', methods=['GET'])
+def formulario_classes():
+    return render_template("upload_classes.html")
 
-    for arquivo in arquivos:
-        caminho = os.path.join(UPLOAD_FOLDER, arquivo.filename)
+def encontrar_ultima_pasta_teste(base_dir):
+    pastas_teste = [p for p in os.listdir(base_dir) if p.startswith("Teste") and os.path.isdir(os.path.join(base_dir, p))]
+    if not pastas_teste:
+        return None
+    pastas_teste.sort(key=lambda x: int(x.replace("Teste", "")))
+    return os.path.join(base_dir, pastas_teste[-1])
 
+numero_de_classes = 0
 
-        os.makedirs(os.path.dirname(caminho), exist_ok=True)
-        
-        arquivo.save(caminho)
+def criar_nova_pasta_teste(base_dir):
+    i = 1
+    while True:
+        nome_pasta = f"Teste{i}"
+        caminho_completo = os.path.join(base_dir, nome_pasta)
+        if not os.path.exists(caminho_completo):
+            os.makedirs(caminho_completo)
+            return caminho_completo
+        i += 1
 
-    return 'Arquivos enviados com sucesso!'
+@bp.route('/upload_classes', methods=['POST'])
+def upload_classes():
+    nomes_classes = request.form.getlist('classes[]')
+    arquivos_lista = request.files.getlist('arquivos[]')
+
+    ultima_pasta_teste = encontrar_ultima_pasta_teste(UPLOAD_FOLDER)
+    if not ultima_pasta_teste:
+        ultima_pasta_teste = criar_nova_pasta_teste(UPLOAD_FOLDER)
+
+    # Como cada input de arquivos está em sequência, emparelhamos classe e arquivos por índice
+    from werkzeug.datastructures import MultiDict
+    arquivos_form = MultiDict(request.files)
+
+    for idx, nome_classe in enumerate(nomes_classes):
+        arquivos_para_classe = arquivos_form.getlist('arquivos[]')[idx::len(nomes_classes)]
+
+        destino_classe = os.path.join(ultima_pasta_teste, nome_classe)
+        os.makedirs(destino_classe, exist_ok=True)
+
+        for arquivo in arquivos_para_classe:
+            caminho_arquivo = os.path.join(destino_classe, arquivo.filename)
+            os.makedirs(os.path.dirname(caminho_arquivo), exist_ok=True)
+            arquivo.save(caminho_arquivo)
+
+    global numero_de_classes
+    numero_de_classes = len(nomes_classes)
+    
+    return render_template("variaveisRede2.html")
+
 
 @bp.route("/treinar", methods=["POST"])
 def treinar():
