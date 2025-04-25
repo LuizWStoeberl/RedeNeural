@@ -20,14 +20,14 @@ def hex_para_rgb_normalizado(hex_color):
     return [r, g, b]
 
 def processar_dados(epocas, neuronios, enlaces):
-    caminho_csv = "arquivos/tabela_cores.csv"  # Nome fixo aqui também
+    caminho_csv = "arquivos/tabela_cores.csv"  
 
     if not os.path.exists(caminho_csv):
         raise FileNotFoundError("Arquivo de cores não encontrado. Verifique se o arquivo foi salvo corretamente.")
 
     dataset = pd.read_csv("arquivos/tabela_cores.csv")
 
-    # Converte todas as colunas de cor para arrays de números
+    
     X = []
 
     for _, row in dataset.iloc[:, :-1].iterrows():
@@ -38,18 +38,17 @@ def processar_dados(epocas, neuronios, enlaces):
 
     X = np.array(X)
     y_raw = dataset.iloc[:, -1].values
-    y = (y_raw == y_raw[0])   # binário, pode adaptar depois
-
+    y = (y_raw == y_raw[0])   
     X_treinamento, X_teste, y_treinamento, y_teste = train_test_split(X, y, test_size=0.2)
 
-    # Treina usando os dados passados
+    
     acc, cm = treinar_rede_neural(X_treinamento, y_treinamento, epocas, neuronios, enlaces)
 
     novo_treinamento = Treinamento(
        epocas=epocas,
         neuronios=neuronios,
         enlaces=enlaces,
-        resultado=f"{acc:.4f}",        # Salvar como string, se quiser salvar como número, mude o tipo no model
+        resultado=f"{acc:.4f}",        
         usuario_id=1
     )
     db.session.add(novo_treinamento)
@@ -62,31 +61,31 @@ def get_ultimo_treinamento():
     return Treinamento.query.order_by(Treinamento.id.desc()).first()
 
 def treinar_rede_neural(X, y, epocas, neuronios, enlaces):
-    # Configuração do modelo da rede neural
+    
     rede_neural = tf.keras.models.Sequential()
     rede_neural.add(tf.keras.layers.Dense(units=neuronios, activation='relu', input_shape=(X.shape[1],)))
     
-    # Adicionando camadas ocultas
+   
     for _ in range(enlaces - 1):
         rede_neural.add(tf.keras.layers.Dense(units=neuronios, activation='relu'))
 
-    # Camada de saída
+   
     rede_neural.add(tf.keras.layers.Dense(units=1, activation='sigmoid'))
 
-    # Compilação do modelo
+    
     rede_neural.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-    # Treinamento
+   
     historico = rede_neural.fit(X, y, epochs=epocas, validation_split=0.1)
 
-    # Fazendo previsões
+    
     previsoes = rede_neural.predict(X)
-    previsoes = (previsoes > 0.5)  # Classificando como 0 ou 1
+    previsoes = (previsoes > 0.5)  
 
-    # Calculando a acurácia
+    
     acc = accuracy_score(y, previsoes)
 
-    # Calculando a matriz de confusão
+    
     cm = confusion_matrix(y, previsoes)
 
     return acc, cm
