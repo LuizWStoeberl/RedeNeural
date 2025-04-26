@@ -63,7 +63,7 @@ def salvar():
     cores = dados.get("cores", [])
     labels = dados.get("labels", []) 
 
-    nome_arquivo = "tabela_cores.csv"  # Nome fixo aqui!
+    nome_arquivo = "tabela_cores.csv" 
     caminho_arquivo = os.path.join(ARQUIVOS_DIR, nome_arquivo)
 
     with open(caminho_arquivo, 'w') as f:
@@ -109,7 +109,7 @@ def upload_classes():
     if not ultima_pasta_teste:
         ultima_pasta_teste = criar_nova_pasta_teste(UPLOAD_FOLDER)
 
-    # Como cada input de arquivos está em sequência, emparelhamos classe e arquivos por índice
+    
     from werkzeug.datastructures import MultiDict
     arquivos_form = MultiDict(request.files)
 
