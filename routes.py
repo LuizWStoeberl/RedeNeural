@@ -1,6 +1,11 @@
 from flask import Blueprint, render_template, request, jsonify
 from models import db, Treinamento
 from datetime import datetime
+from processar_imagem import processar_todas_imagens
+from cnn_model import treinar_cnn
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+import numpy as np
 import os
 
 bp = Blueprint("routes", __name__)
@@ -128,9 +133,18 @@ def upload_classes():
 @bp.route("/treinar", methods=["POST"])
 def treinar():
     try:
-        from rede_neural import treinar_rede_neural
-        acc, cm = treinar_rede_neural()
-        return jsonify({"mensagem": "Treinamento concluido", "acuracia": acc})
+        # 1. Converter imagens em CSV
+        caminho_csv = converter_imagens_para_csv()
+
+        # 2. Treinar a rede neural com base no CSV gerado
+        acc, cm = treinar_rede_neural(caminho_csv)
+
+        return jsonify({
+            "mensagem": "Treinamento concluído com sucesso!",
+            "acuracia": acc,
+            "matriz_confusao": cm.tolist()
+        })
+
     except Exception as e:
         return jsonify({"erro": str(e)}), 400
     
@@ -142,25 +156,58 @@ def treinar_cnn():
         return jsonify({"mensagem": "CNN treinada com sucesso", "acuracia": acc})
     except Exception as e:
         return jsonify({"erro": str(e)}), 400    
+
+
+@bp.route('/processar-imagens', methods=['POST'])
+def processar_imagens_route():
+    try:
+        caminho_csv = processar_todas_imagens('uploads_imagens')  # pasta onde o usuário envia as imagens
+        return jsonify({"mensagem": "Imagens processadas com sucesso!", "csv_gerado": caminho_csv})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
+
+@bp.route('/treinar-cnn', methods=['POST'])
+def treinar_cnn_route():
+    try:
+        resultado = treinar_cnn('uploads_imagens')  # Pasta base das imagens organizadas em subpastas (por classe)
+        return jsonify({"mensagem": "Treinamento concluído!", "resultado": resultado})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
+
+@bp.route('/classificar-imagem', methods=['POST'])
+def classificar_imagem():
+    try:
+        arquivo = request.files['imagem']
+        caminho_temporario = os.path.join('uploads_imagens', arquivo.filename)
+        arquivo.save(caminho_temporario)
+
+        modelo = load_model('modelo_cnn_salvo.h5')
+
+        img = image.load_img(caminho_temporario, target_size=(64, 64))
+        img_array = image.img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array /= 255.0
+
+        predicao = modelo.predict(img_array)
+        classe_predita = np.argmax(predicao)
+
+        return jsonify({"classe_predita": int(classe_predita)})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
     
-@bp.route('/listar_treinamentos', methods=['GET'])
-def listar_treinamentos():
-    treinamentos = Treinamento.query.order_by(Treinamento.id.desc()).all()
-    return jsonify([t.to_dict() for t in treinamentos])
-
-@bp.route("/teste_salvar", methods=["GET"])
-def teste_salvar():
-    novo = Treinamento(epocas=5, neuronios=32, enlaces=2)
-    db.session.add(novo)
+@bp.route('/definir_intervalos_cor', methods=['POST'])
+def definir_intervalos_cor():
+    dados = request.json  # Deve vir uma lista de intervalos
+    for intervalo in dados:
+        cor = IntervaloCor(
+            classe=intervalo['classe'],
+            r_min=intervalo['r_min'],
+            r_max=intervalo['r_max'],
+            g_min=intervalo['g_min'],
+            g_max=intervalo['g_max'],
+            b_min=intervalo['b_min'],
+            b_max=intervalo['b_max'],
+        )
+        db.session.add(cor)
     db.session.commit()
-    return jsonify({"mensagem": "Salvo com sucesso!", "id": novo.id})
-
-@bp.route("/criar_usuario", methods=["GET"])
-def criar_usuario():
-    from models import Usuario, db
-
-    novo_usuario = Usuario(nome="Usuário Teste", email="teste@exemplo.com")
-    db.session.add(novo_usuario)
-    db.session.commit()
-
-    return jsonify({"mensagem": "Usuário criado com sucesso!", "id": novo_usuario.id})
+    return jsonify({'mensagem': 'Intervalos de cor salvos com sucesso!'})

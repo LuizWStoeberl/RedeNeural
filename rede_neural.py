@@ -89,4 +89,7 @@ def treinar_rede_neural(X, y, epocas, neuronios, enlaces):
     # Calculando a matriz de confusão
     cm = confusion_matrix(y, previsoes)
 
+    modelo_path = "modelo_cnn_salvo.h5"
+    rede_neural.save(modelo_path)
+
     return acc, cm

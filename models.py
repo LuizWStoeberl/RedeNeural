@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from models import db
 
 db = SQLAlchemy()
 
@@ -26,3 +27,14 @@ class Treinamento(db.Model):
             "resultado": self.resultado,
             "usuario_id": self.usuario_id
         }
+
+class IntervaloCor(db.Model):
+    __tablename__ = 'intervalos_cor'
+    id = db.Column(db.Integer, primary_key=True)
+    classe = db.Column(db.String(100), nullable=False)  # Ex: "Bart", "Homer"
+    r_min = db.Column(db.Integer, nullable=False)
+    r_max = db.Column(db.Integer, nullable=False)
+    g_min = db.Column(db.Integer, nullable=False)
+    g_max = db.Column(db.Integer, nullable=False)
+    b_min = db.Column(db.Integer, nullable=False)
+    b_max = db.Column(db.Integer, nullable=False)
