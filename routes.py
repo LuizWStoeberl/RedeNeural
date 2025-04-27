@@ -182,18 +182,44 @@ def enviar():
     if not epocas or not neuronios or not enlaces:
         flash('Por favor, preencha todos os campos.')
         return redirect(url_for('routes.rede_neural1'))
+    
+    try:
+        epocas = int(epocas)
+        neuronios = int(neuronios)
+        enlaces = int(enlaces)
+        # Chama a função de treinamento
+        acc, cm = treinar_rede_neural()
+        # Salva os parâmetros no banco
+        novo_treinamento = Treinamento(
+            epocas=epocas,
+            neuronios=neuronios,
+            enlaces=enlaces,
+            resultado=f"Accuracy: {acc:.4f}"
+        )
+        db.session.add(novo_treinamento)
+        db.session.commit()
+        # Renderiza o template com os resultados
+        return render_template('resultadoRede1.html', 
+                             acuracia=acc, 
+                             matriz_confusao=cm.tolist(),
+                             epocas=epocas,
+                             neuronios=neuronios,
+                             enlaces=enlaces)
+    except Exception as e:
+        flash(f'Erro ao treinar a rede: {str(e)}')
+        return redirect(url_for('routes.variaveisRede1'))
 
     # Armazenar os dados na sessão
-    session['dados_rede_neural'] = {
-        'epocas': epocas,
-        'neuronios': neuronios,
-        'enlaces': enlaces
-    }
+ #   session['dados_rede_neural'] = {
+  #      'epocas': epocas,
+    #    'neuronios': neuronios,
+   #     'enlaces': enlaces
+   # }
 
-    flash('Dados armazenados com sucesso!')
+   # flash('Dados armazenados com sucesso!')
 
     # Redireciona para a próxima etapa
-    return redirect(url_for('routes.resultadoRede1'))
+   # return redirect(url_for('routes.resultadoRede1')) 
 
 
 
@@ -251,18 +277,44 @@ def enviar2():
     if not epocas or not neuronios or not camadas:
         flash('Por favor, preencha todos os campos.')
         return redirect(url_for('routes.rede_neural1'))
+    
+    try:
+        epocas = int(epocas)
+        neuronios = int(neuronios)
+        camadas = int(camadas)
+        # Chama a função de treinamento CNN
+        acc, cm = treinar_rede_neural_cnn()
+        # Salva os parâmetros no banco
+        novo_treinamento = Treinamento(
+            epocas=epocas,
+            neuronios=neuronios,
+            enlaces=camadas,  # Usando enlaces para camadas convolucionais
+            resultado=f"Accuracy: {acc:.4f}"
+        )
+        db.session.add(novo_treinamento)
+        db.session.commit()
+        # Renderiza o template com os resultados
+        return render_template('resultadoRede2.html', 
+                             acuracia=acc, 
+                             matriz_confusao=cm.tolist(),
+                             epocas=epocas,
+                             neuronios=neuronios,
+                             camadas=camadas)
+    except Exception as e:
+        flash(f'Erro ao treinar a CNN: {str(e)}')
+        return redirect(url_for('routes.variaveisRede2'))
 
     # Armazenar os dados na sessão
-    session['dados_rede_neural'] = {
-        'epocas': epocas,
-        'neuronios': neuronios,
-        'camadas': camadas
-    }
+   # session['dados_rede_neural'] = {
+   #     'epocas': epocas,
+    #    'neuronios': neuronios,
+    #    'camadas': camadas
+   # }
 
-    flash('Dados armazenados com sucesso!')
+   # flash('Dados armazenados com sucesso!')
 
     # Redireciona para a próxima etapa
-    return redirect(url_for('routes.resultadoRede2'))
+    #return redirect(url_for('routes.resultadoRede2'))
 
 
 
@@ -367,20 +419,48 @@ def treinar_cnn_route():
 def classificar_imagem():
     try:
         arquivo = request.files['imagem']
-        caminho_temporario = os.path.join('uploads_imagens', arquivo.filename)
+        caminho_temporario = os.path.join('Uploads_imagens', arquivo.filename)
+        os.makedirs('Uploads_imagens', exist_ok=True)
         arquivo.save(caminho_temporario)
-
-        modelo = load_model('modelo_cnn_salvo.h5')
-
-        img = image.load_img(caminho_temporario, target_size=(64, 64))
+        modelo = load_model('modelos_salvos/modelo_cnn.h5')  # Ajustado para usar modelo_cnn.h5
+        img = image.load_img(caminho_temporario, target_size=(150, 150))  # Ajustado para 150x150
         img_array = image.img_to_array(img)
         img_array = np.expand_dims(img_array, axis=0)
         img_array /= 255.0
-
         predicao = modelo.predict(img_array)
-        classe_predita = np.argmax(predicao)
-
-        return jsonify({"classe_predita": int(classe_predita)})
+        classe_predita = int(predicao[0][0] > 0.5)  # Para classificação binária
+        personagem = CLASSES_PERSONAGENS.get(classe_predita, "Desconhecido")
+        return jsonify({
+            "mensagem": f"Personagem identificado: {personagem}",
+            "classe_predita": classe_predita
+        })
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
+    
+@bp.route('/classificar-imagem-densa', methods=['POST'])
+def classificar_imagem_densa():
+    try:
+        from pixel import converter_imagens_para_csv
+        arquivo = request.files['imagem']
+        caminho_temporario = os.path.join('Uploads_imagens', arquivo.filename)
+        os.makedirs('Uploads_imagens', exist_ok=True)
+        arquivo.save(caminho_temporario)
+        # Converte a imagem para CSV
+        pasta_temp = 'temp_imagem'
+        os.makedirs(pasta_temp, exist_ok=True)
+        shutil.move(caminho_temporario, os.path.join(pasta_temp, arquivo.filename))
+        caminho_csv = converter_imagens_para_csv(pasta_temp)
+        # Classifica usando a rede densa
+        from savemodel import classificar_nova_imagem
+        previsoes = classificar_nova_imagem(caminho_csv)
+        classe_predita = int(previsoes[0])  # Assume saída binária
+        personagem = CLASSES_PERSONAGENS.get(classe_predita, "Desconhecido")
+        # Remove pasta temporária
+        shutil.rmtree(pasta_temp)
+        return jsonify({
+            "mensagem": f"Personagem identificado: {personagem}",
+            "classe_predita": classe_predita
+        })
     except Exception as e:
         return jsonify({"erro": str(e)}), 400
     
@@ -400,3 +480,31 @@ def definir_intervalos_cor():
         db.session.add(cor)
     db.session.commit()
     return jsonify({'mensagem': 'Intervalos de cor salvos com sucesso!'})
+
+@bp.route('/modelos', methods=['GET'])
+def listar_modelos():
+    modelos = ModeloTreinado.query.all()
+    lista = []
+    for modelo in modelos:
+        lista.append({
+            'id': modelo.id,
+            'nome': modelo.nome_modelo,
+            'tipo': modelo.tipo_modelo,
+            'data': modelo.data_treinamento.strftime('%Y-%m-%d %H:%M:%S'),
+            'resultado': modelo.resultado
+        })
+    return jsonify(lista)
+
+@bp.route('/selecionar_modelo', methods=['POST'])
+def selecionar_modelo():
+    dados = request.json
+    id_modelo = dados.get('id_modelo')
+
+    modelo = ModeloTreinado.query.get(id_modelo)
+    if not modelo:
+        return jsonify({'erro': 'Modelo não encontrado'}), 404
+
+    return jsonify({
+        'caminho_modelo': modelo.caminho_modelo,
+        'nome_modelo': modelo.nome_modelo
+    })
