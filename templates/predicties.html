@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classificar Imagem</title>
+</head>
+<body>
+    <h1>Classificar Imagem</h1>
+    <form action="{{ url_for('principal.prever') }}" method="POST" enctype="multipart/form-data">
+        <label for="image">Escolha uma Imagem para Classificar:</label>
+        <input type="file" name="image" required><br><br>
+
+        <button type="submit">Classificar</button>
+    </form>
+</body>
+</html>

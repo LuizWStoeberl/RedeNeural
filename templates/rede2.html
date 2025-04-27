@@ -1,60 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Upload de Pastas</title>
     <link rel="stylesheet" href="../static/styles.css">
-    <script>
-        function adicionarClasse() {
-            const container = document.getElementById('classes-container');
-
-            const novaClasse = document.createElement('div');
-            novaClasse.classList.add('classe-bloco');
-
-            novaClasse.innerHTML = `
-                <hr>
-                <label>Nome da Classe:</label>
-                <input type="text" name="classes[]" required>
-                <br>
-                <label>Arquivos:</label>
-                <input type="file" name="arquivos[]" multiple required>
-                <br><br>
-            `;
-
-            container.appendChild(novaClasse);
-        }
-    </script>
 </head>
 <body>
-    <h1 class="titulo">Você esta na rede 2. Escolha as classes</h1>
-    <p>Lembre de adicionar imagens jpg na sua pasta</p>
-    <form method="POST" action="/upload_classes" enctype="multipart/form-data">
-        <div id="classes-container">
-            <!-- Classe inicial -->
-            <div class="classe-bloco">
-                <label>Nome da Classe:</label>
-                <input type="text" name="classes[]" required>
-                <br>
-                <label>Arquivos:</label>
-                <input type="file" name="arquivos[]" multiple required>
-                <br><br>
-            </div>
-        </div>
-        <button type="button" onclick="adicionarClasse()">+ Adicionar Nova Classe</button>
-        <br><br>
-        <button type="submit">Enviar Todas</button>
+    <h1>Upload de Pastas e Nomeação de Classes</h1>
 
-    <div>
-        <a href="/templates/variaveisRede2.html">
-            <button>Próximo</button>
-        </a>
-    </div>
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <label for="num_pastas">Quantas pastas deseja upar?</label>
+        <input type="number" id="num_pastas" name="num_pastas" min="1" required><br><br>
+        
+        <div id="upload-container"></div>
+        
+        <button type="submit">Enviar</button>
+    </form>
 
-    <div>
-        <a href="/">
-            <button>Voltar</button>
-        </a>
-    </div>
+    <script>
+        // Função para gerar campos de upload com base no número de pastas inserido pelo usuário
+        document.getElementById('num_pastas').addEventListener('input', function() {
+            let numPastas = parseInt(this.value);
+            let container = document.getElementById('upload-container');
+            container.innerHTML = ''; // Limpa os campos anteriores
+
+            for (let i = 1; i <= numPastas; i++) {
+                let div = document.createElement('div');
+                div.innerHTML = `
+                    <label for="pasta${i}">Nome da Pasta ${i}</label>
+                    <input type="text" name="classe${i}" placeholder="Nome da Classe ${i}" required><br>
+                    <label for="upload${i}">Selecione os arquivos da Pasta ${i}</label>
+                    <input type="file" name="upload${i}" multiple required><br><br>
+                `;
+                container.appendChild(div);
+            }
+        });
+    </script>
 </body>
 </html>

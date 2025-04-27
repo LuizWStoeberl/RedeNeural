@@ -5,15 +5,17 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from models import Treinamento, db
+from models import  db
 
 MODELO_SALVO_PATH = 'modelos_salvos/modelo_cnn.h5'
 os.makedirs('modelos_salvos', exist_ok=True)
 
 def get_ultimo_treinamento():
+    from models import Treinamento
     return Treinamento.query.order_by(Treinamento.id.desc()).first()
 
 def treinar_rede_neural_cnn():
+    from models import Treinamento
     arquivos_dir = "arquivos"
     arquivos_csv = [f for f in os.listdir(arquivos_dir) if f.endswith(".csv")]
     arquivos_csv.sort(reverse=True)

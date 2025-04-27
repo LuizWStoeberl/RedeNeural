@@ -3,14 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from config import Config
 from routes import bp as routes_bp
 from models import db
-from cores import cores
 
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Para desabilitar o rastreamento de modificações, o que evita warnings.
 
-app = Flask(__name__)
-app.register_blueprint(bp_uploads)
-app.register_blueprint(bp_cores)
+app.secret_key = 'ioio2014'
 
 db.init_app(app)
 app.register_blueprint(routes_bp)

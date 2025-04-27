@@ -1,30 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Upload e Atributos</title>
     <link rel="stylesheet" href="../static/styles.css">
 </head>
 <body>
-    <h1 class="titulo">Você esta na Rede 1. Escolha os pixels</h1>
+    <h1 class="titulo">Upload de pastas e seleção de cores</h1>
     
-        <div id="controle">
-
-        <label for="quantidade">Quantos pixels você deseja colocar?</label>
-        <input type="number" id="quantidade" min="2" value="1">
-        <button onclick="definirQuantidade()">Confirmar</button>
-        <button onclick="adicionarLinha()" disabled id="btnNovaLinha">Adicionar nova linha</button>
-
+    <form id="uploadForm" action="/upload_pasta_atributos" method="POST" enctype="multipart/form-data">
+        <!-- Classe 1 -->
+        <div>
+            <label for="pasta1">Selecione os arquivos da classe 1:</label>
+            <input type="file" id="pasta1" name="arquivos1[]" webkitdirectory multiple required>
         </div>
 
-        <div id="informacoes"></div>
-        <button onclick="enviarDados()">Salvar tabela</button>
-    <div>
-        <a href="/templates/variaveisRede1.html">
-            <button>Próximo</button>
-        </a>
-    </div>
+        <div>
+            <label for="atributo1_1">Escolha a primeira cor para a classe 1:</label>
+            <input type="color" id="atributo1_1" name="atributos1[]" required>
+        </div>
+
+        <div>
+            <label for="atributo2_1">Escolha a segunda cor para a classe 1:</label>
+            <input type="color" id="atributo2_1" name="atributos1[]" required>
+        </div>
+
+        <div>
+            <label for="atributo3_1">Escolha a terceira cor para a classe 1:</label>
+            <input type="color" id="atributo3_1" name="atributos1[]" required>
+        </div>
+
+        <!-- Classe 2 -->
+        <div>
+            <label for="pasta2">Selecione os arquivos da classe 2:</label>
+            <input type="file" id="pasta2" name="arquivos2[]" webkitdirectory multiple required>
+        </div>
+
+        <div>
+            <label for="atributo1_2">Escolha a primeira cor para a classe 2:</label>
+            <input type="color" id="atributo1_2" name="atributos2[]" required>
+        </div>
+
+        <div>
+            <label for="atributo2_2">Escolha a segunda cor para a classe 2:</label>
+            <input type="color" id="atributo2_2" name="atributos2[]" required>
+        </div>
+
+        <div>
+            <label for="atributo3_2">Escolha a terceira cor para a classe 2:</label>
+            <input type="color" id="atributo3_2" name="atributos2[]" required>
+        </div>
+
+        <!-- Botão de Enviar -->
+        <button type="submit">Enviar</button>
+    </form>
+
+    <br><br>
 
     <div>
         <a href="/">
@@ -32,6 +64,5 @@
         </a>
     </div>
 
-    <script src="/static/script.js"></script>
 </body>
 </html>

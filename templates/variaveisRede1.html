@@ -1,42 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Configuração Rede Neural</title>
     <link rel="stylesheet" href="../static/styles.css">
 </head>
-</head>
 <body>
-    <h1 class="titulo"> Você esta na rede 1. Escolha as variaveis</h1>
+    <h1 class="titulo"> Você está na Rede Neural 1. Escolha as variáveis</h1>
 
     <div class="pixelAll">
         <form action="/enviar" method="POST">
-        <div class="formularioCores">
-                 <label for="epocas"></label>
-                 <input type="number" id="epocas" name="epocas" placeholder="Número de épocas" required>
-            
-        </div>
+            <!-- Número de Épocas -->
+            <div class="formularioCores">
+                <label for="epocas">Número de Épocas:</label>
+                <input type="number" id="epocas" name="epocas" placeholder="Número de épocas" required>
+            </div>
 
-        <div class="formularioCores">
-            
-                 <label for="neuronios"></label>
-                 <input type="number" id="neuronios" name="neuronios" placeholder="Número de neuronios" required>
-            
-        </div>
+            <!-- Número de Neurônios -->
+            <div class="formularioCores">
+                <label for="neuronios">Número de Neurônios:</label>
+                <input type="number" id="neuronios" name="neuronios" placeholder="Número de neurônios" required>
+            </div>
 
-        <div class="formularioCores">
-                 <label for="enlaces" ></label>
-                 <input type="enlaces" id="enlaces" name="enlaces" placeholder="Número de Enlaces" required>
-        </div>
-        <div class="botaoEnviar">
-            <a href="">
+            <!-- Número de Enlaces -->
+            <div class="formularioCores">
+                <label for="enlaces">Número de Enlaces:</label>
+                <input type="number" id="enlaces" name="enlaces" placeholder="Número de Enlaces" required>
+            </div>
+
+            <!-- Botão de Enviar -->
+            <div class="botaoEnviar">
                 <button type="submit">Próximo</button>
-            </a>
-        </div>
-    </form>
+            </div>
+        </form>
     </div>
 
+    <!-- Botão Voltar -->
     <div>
         <a href="/templates/rede1.html">
             <button>Voltar</button>
