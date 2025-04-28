@@ -1,53 +1,82 @@
-from flask import Blueprint, request, redirect, url_for, render_template, flash, session
-import random 
+from flask import Blueprint,request, redirect, url_for, render_template, flash, session
+import random
 import shutil
 import time
 from models import db, Treinamento
 from datetime import datetime
 from processar_imagem import processar_todas_imagens
-from cnn_model import treinar_rede_neural_cnn
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-import numpy as np
 import os
+import numpy as np
+from pixel import converter_imagens_para_csv, processar_imagem, hex_para_rgb_normalizado
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+import pandas as pd
+from rede_neural1 import RedeNeural1
 
+# Configurações
 bp = Blueprint("routes", __name__)
-
-#Criando as pastas e toda lógica necessaria para elas funcionarem
-
 ARQUIVOSREDE1_DIR = 'arquivosRede1'
-if not os.path.exists(ARQUIVOSREDE1_DIR):
-    os.makedirs(ARQUIVOSREDE1_DIR)
-def criar_nova_pasta_teste(base_dir):
-    i = 1
-    while True:
-        nome_pasta = f"Teste{i}"
-        caminho_completo = os.path.join(base_dir, nome_pasta)
-        if not os.path.exists(caminho_completo):
-            os.makedirs(caminho_completo)
-            return caminho_completo
-        i += 1
+os.makedirs(ARQUIVOSREDE1_DIR, exist_ok=True)
 
+# Helpers
+def criar_pasta_segura(base_dir, prefixo):
+    """Cria pasta com nome único de forma segura"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome_pasta = f"{prefixo}_{timestamp}"
+    caminho = os.path.join(base_dir, nome_pasta)
+    os.makedirs(caminho, exist_ok=True)
+    return caminho
 
+def salvar_arquivos(arquivos, pasta_destino):
+    """Salva arquivos de upload de forma segura"""
+    os.makedirs(pasta_destino, exist_ok=True)
+    for arquivo in arquivos:
+        if arquivo.filename.strip():
+            filename = secure_filename(arquivo.filename)
+            arquivo.save(os.path.join(pasta_destino, filename))
 
-UPLOAD_FOLDER = 'arquivosRede2'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-def criar_nova_pasta_teste(base_dir):
-    i = 1
-    while True:
-        nome_pasta = f"Teste{i}"
-        caminho_completo = os.path.join(base_dir, nome_pasta)
-        if not os.path.exists(caminho_completo):
-            os.makedirs(caminho_completo)
-            return caminho_completo
-        i += 1
+def distribuir_arquivos_treinamento_teste(pasta_origem):
+    """Distribui arquivos entre treinamento e teste (80/20)"""
+    pasta_treinamento = os.path.join(pasta_origem, "treinamento")
+    pasta_teste = os.path.join(pasta_origem, "teste")
+    
+    for classe in ["Classe1", "Classe2"]:
+        pasta_classe = os.path.join(pasta_origem, classe)
+        if not os.path.exists(pasta_classe):
+            continue
+            
+        arquivos = [
+            f for f in os.listdir(pasta_classe)
+            if os.path.isfile(os.path.join(pasta_classe, f)) and
+            f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+        ]
+        
+        random.shuffle(arquivos)
+        div = int(0.8 * len(arquivos))
+        
+        # Mover para treinamento
+        os.makedirs(os.path.join(pasta_treinamento, classe), exist_ok=True)
+        for f in arquivos[:div]:
+            shutil.move(
+                os.path.join(pasta_classe, f),
+                os.path.join(pasta_treinamento, classe, f)
+            )
+        
+        # Mover para teste
+        os.makedirs(os.path.join(pasta_teste, classe), exist_ok=True)
+        for f in arquivos[div:]:
+            shutil.move(
+                os.path.join(pasta_classe, f),
+                os.path.join(pasta_teste, classe, f)
+            )
 
-
-#Aqui começam as rotas
-
+# Rotas simples
 @bp.route("/")
 def home():
-   return render_template("home.html")
+    return render_template("home.html")
 
 @bp.route("/rede1")
 def rede1():
@@ -55,15 +84,15 @@ def rede1():
 
 @bp.route("/templates/rede2.html")
 def rede2():
-   return render_template("rede2.html")
+    return render_template("rede2.html")
 
 @bp.route("/templates/variaveisRede1.html")
 def variaveisRede1():
-   return render_template("variaveisRede1.html")
+    return render_template("variaveisRede1.html")
 
 @bp.route("/templates/variaveisRede2.html")
 def variaveisRede2():
-   return render_template("variaveisRede2.html")
+    return render_template("variaveisRede2.html")
 
 @bp.route("/templates/resultadoRede1.html")
 def resultadoRede1():
@@ -73,162 +102,210 @@ def resultadoRede1():
 def resultadoRede2():
     return render_template("resultadoRede2.html")
 
-
-
-#AQUI COMEÇAM AS ROTAS MAIS COMPLEXAS
-
-
-# --> REDE 1 <--
-
-ultimo_upload_caminho = None  
-
+# Rotas de Upload e Processamento
 @bp.route('/upload_pasta_atributos', methods=['POST'])
 def upload_pasta_atributos():
-    global ultimo_upload_caminho
-
-    # Obter os arquivos enviados
-    arquivos_classe1 = request.files.getlist('arquivos1[]')
-    arquivos_classe2 = request.files.getlist('arquivos2[]')
-
-    # Validação básica
-    if not arquivos_classe1 or not arquivos_classe2:
-        flash('Envie arquivos para ambas as classes!', 'erro')
-        return redirect(url_for('principal.index'))
-
-    # Pasta de destino (cria se não existir)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    pasta_upload = os.path.join("arquivosRede1", f"upload_{timestamp}")
-    os.makedirs(pasta_upload, exist_ok=True)
-
-    # Função para sanitizar nomes de arquivo
-    def sanitizar_nome(nome):
-        # Remove barras e caracteres problemáticos
-        return nome.replace('/', '_').replace('\\', '_')
-
-    # Salvar arquivos nas pastas das classes
-    def salvar_arquivos(arquivos, classe):
-        pasta_classe = os.path.join(pasta_upload, classe)
-        os.makedirs(pasta_classe, exist_ok=True)
-        for arquivo in arquivos:
-            if arquivo.filename.strip():
-                nome_sanitizado = sanitizar_nome(arquivo.filename)
-                caminho_completo = os.path.join(pasta_classe, nome_sanitizado)
-                arquivo.save(caminho_completo)
-
-    salvar_arquivos(arquivos_classe1, "Classe1")
-    salvar_arquivos(arquivos_classe2, "Classe2")
-
-    # Distribuir entre treinamento/teste
-    distribuir_arquivos_em_treinamento_e_teste(pasta_upload)
-
-    # Atualizar variável global
-    ultimo_upload_caminho = pasta_upload
-    flash('Arquivos distribuídos com sucesso!', 'sucesso')
-    return redirect(url_for('routes.variaveisRede1'))
-
-def distribuir_arquivos_em_treinamento_e_teste(pasta_principal):
-    # Pastas de origem
-    pasta_classe1 = os.path.join(pasta_principal, "Classe1")
-    pasta_classe2 = os.path.join(pasta_principal, "Classe2")
-
-    # Pastas de destino (treinamento/teste)
-    pasta_treinamento = os.path.join(pasta_principal, "treinamento")
-    pasta_teste = os.path.join(pasta_principal, "teste")
-
-    # Processa cada classe
-    for classe in ["Classe1", "Classe2"]:
-        pasta_origem = os.path.join(pasta_principal, classe)
-        
-        # Filtra apenas imagens
-        extensoes = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
-        arquivos = [f for f in os.listdir(pasta_origem) 
-                   if os.path.isfile(os.path.join(pasta_origem, f)) and 
-                   f.lower().endswith(extensoes)]
-        
-        if not arquivos:
-            continue
-
-        # Embaralha e divide 80/20
-        random.shuffle(arquivos)
-        div = int(0.8 * len(arquivos))
-
-        # Move para treinamento (80%)
-        os.makedirs(os.path.join(pasta_treinamento, classe), exist_ok=True)
-        for arquivo in arquivos[:div]:
-            shutil.move(
-                os.path.join(pasta_origem, arquivo),
-                os.path.join(pasta_treinamento, classe, arquivo)
-            )
-
-        # Move para teste (20%)
-        os.makedirs(os.path.join(pasta_teste, classe), exist_ok=True)
-        for arquivo in arquivos[div:]:
-            shutil.move(
-                os.path.join(pasta_origem, arquivo),
-                os.path.join(pasta_teste, classe, arquivo)
-            )
-
-    print(f"Distribuição concluída em: {pasta_principal}")
-
-
-@bp.route('/enviar', methods=['POST'])
-def enviar():
-    # Capturando os dados do formulário
-    epocas = request.form.get('epocas')
-    neuronios = request.form.get('neuronios')
-    enlaces = request.form.get('enlaces')
-
-    # Validação simples para garantir que os campos não estão vazios
-    if not epocas or not neuronios or not enlaces:
-        flash('Por favor, preencha todos os campos.')
-        return redirect(url_for('routes.rede_neural1'))
-    
     try:
-        epocas = int(epocas)
-        neuronios = int(neuronios)
-        enlaces = int(enlaces)
-        # Chama a função de treinamento
-        acc, cm = treinar_rede_neural()
-        # Salva os parâmetros no banco
-        novo_treinamento = Treinamento(
-            epocas=epocas,
-            neuronios=neuronios,
-            enlaces=enlaces,
-            resultado=f"Accuracy: {acc:.4f}"
-        )
-        db.session.add(novo_treinamento)
-        db.session.commit()
-        # Renderiza o template com os resultados
-        return render_template('resultadoRede1.html', 
-                             acuracia=acc, 
-                             matriz_confusao=cm.tolist(),
-                             epocas=epocas,
-                             neuronios=neuronios,
-                             enlaces=enlaces)
-    except Exception as e:
-        flash(f'Erro ao treinar a rede: {str(e)}')
+        # 1. Validar uploads e atributos
+        arquivos_classe1 = request.files.getlist('arquivos1[]')
+        arquivos_classe2 = request.files.getlist('arquivos2[]')
+        atributos1 = request.form.getlist('atributos1[]')
+        atributos2 = request.form.getlist('atributos2[]')
+
+        # Verificar se arquivos foram enviados
+        if not arquivos_classe1 or not arquivos_classe2:
+            flash('Envie arquivos para ambas as classes!', 'error')
+            return redirect(url_for('routes.rede1'))
+
+        # Validar exatamente 3 atributos para cada classe
+        if len(atributos1) != 3 or len(atributos2) != 3:
+            flash('Selecione exatamente três cores para cada classe!', 'error')
+            return redirect(url_for('routes.rede1'))
+
+        # 2. Criar estrutura de diretórios
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pasta_upload = os.path.join(ARQUIVOSREDE1_DIR, f"upload_{timestamp}")
+        os.makedirs(pasta_upload, exist_ok=True)
+
+        # 3. Salvar arquivos de forma segura
+        def salvar_arquivos(arquivos, classe):
+            pasta_classe = os.path.join(pasta_upload, classe)
+            os.makedirs(pasta_classe, exist_ok=True)
+            for arquivo in arquivos:
+                if arquivo.filename.strip():
+                    filename = secure_filename(arquivo.filename)
+                    if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+                        arquivo.save(os.path.join(pasta_classe, filename))
+
+        salvar_arquivos(arquivos_classe1, "Classe1")
+        salvar_arquivos(arquivos_classe2, "Classe2")
+
+        # 4. Processar cores (garantindo 3 atributos)
+        atributos1_rgb = [hex_para_rgb_normalizado(cor) for cor in atributos1[:3]]  # Garante apenas 3
+        atributos2_rgb = [hex_para_rgb_normalizado(cor) for cor in atributos2[:3]]  # Garante apenas 3
+
+        # 5. Distribuir arquivos entre treinamento e teste
+        pasta_treinamento = os.path.join(pasta_upload, "treinamento")
+        pasta_teste = os.path.join(pasta_upload, "teste")
+        
+        for classe in ["Classe1", "Classe2"]:
+            pasta_classe = os.path.join(pasta_upload, classe)
+            arquivos = [
+                f for f in os.listdir(pasta_classe)
+                if os.path.isfile(os.path.join(pasta_classe, f)) and
+                f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+            ]
+            
+            if not arquivos:
+                flash(f'Nenhuma imagem válida encontrada para {classe}!', 'error')
+                return redirect(url_for('routes.rede1'))
+            
+            random.shuffle(arquivos)
+            div = int(0.8 * len(arquivos))
+            
+            # Mover para treinamento
+            os.makedirs(os.path.join(pasta_treinamento, classe), exist_ok=True)
+            for f in arquivos[:div]:
+                shutil.move(
+                    os.path.join(pasta_classe, f),
+                    os.path.join(pasta_treinamento, classe, f)
+                )
+            
+            # Mover para teste
+            os.makedirs(os.path.join(pasta_teste, classe), exist_ok=True)
+            for f in arquivos[div:]:
+                shutil.move(
+                    os.path.join(pasta_classe, f),
+                    os.path.join(pasta_teste, classe, f)
+                )
+
+        # 6. Processar imagens e gerar CSV
+        rede = RedeNeural1()
+        imagens_treinamento = []
+        for classe in ["Classe1", "Classe2"]:
+            pasta_classe = os.path.join(pasta_treinamento, classe)
+            imagens_treinamento.extend([
+                os.path.join(pasta_classe, f) 
+                for f in os.listdir(pasta_classe)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+            ])
+
+        caminho_csv = os.path.join(ARQUIVOSREDE1_DIR, f"dados_{timestamp}.csv")
+        rede.processar_imagens(imagens_treinamento, atributos1_rgb, atributos2_rgb, caminho_csv)
+
+        # 7. Armazenar informações na sessão
+        session['caminho_csv'] = caminho_csv
+        session['pasta_teste'] = pasta_teste  # Para uso futuro se necessário
+        
+        flash('Arquivos processados com sucesso! Agora defina os parâmetros da rede.', 'success')
         return redirect(url_for('routes.variaveisRede1'))
 
-    # Armazenar os dados na sessão
- #   session['dados_rede_neural'] = {
-  #      'epocas': epocas,
-    #    'neuronios': neuronios,
-   #     'enlaces': enlaces
-   # }
+    except Exception as e:
+        # Limpeza em caso de erro
+        if 'pasta_upload' in locals() and os.path.exists(pasta_upload):
+            shutil.rmtree(pasta_upload)
+        
+        flash(f'Erro no processamento: {str(e)}', 'error')
+        return redirect(url_for('routes.variaveisRede1'))
 
-   # flash('Dados armazenados com sucesso!')
+# Rota de Treinamento
+@bp.route('/treinar_rede', methods=['POST'])
+def treinar_rede():
+    try:
+        # 1. Validar e obter parâmetros do formulário
+        epocas = int(request.form.get('epocas', 0))
+        neuronios = int(request.form.get('neuronios', 0))
+        camadas = int(request.form.get('camadas', 0))
+        
+        if not all([epocas > 0, neuronios > 0, camadas > 0]):
+            flash('Todos os parâmetros devem ser números positivos!', 'error')
+            return redirect(url_for('routes.variaveisRede1'))
 
-    # Redireciona para a próxima etapa
-   # return redirect(url_for('routes.resultadoRede1')) 
+        # 2. Obter caminho do CSV da sessão
+        caminho_csv = session.get('caminho_csv')
+        if not caminho_csv or not os.path.exists(caminho_csv):
+            flash('Dados de treinamento não encontrados. Por favor, faça o upload novamente.', 'error')
+            return redirect(url_for('routes.rede1'))
+
+        # 3. Carregar e validar dataset
+        try:
+            df = pd.read_csv(caminho_csv)
+            
+            # Verificar se temos as 6 colunas de atributos (3 para cada classe) + classe
+            colunas_esperadas = [
+                'atributo1_classe1', 'atributo2_classe1', 'atributo3_classe1',
+                'atributo1_classe2', 'atributo2_classe2', 'atributo3_classe2',
+                'classe'
+            ]
+            
+            if not all(col in df.columns for col in colunas_esperadas):
+                flash('Estrutura de dados inválida. Por favor, refaça o upload das imagens.', 'error')
+                return redirect(url_for('routes.rede1'))
+                
+            X = df[colunas_esperadas[:-1]].values  # Todas as colunas exceto a última
+            y = df['classe'].values - 1  # Converter classes (1,2) para (0,1)
+
+        except Exception as e:
+            flash(f'Erro ao ler dados de treinamento: {str(e)}', 'error')
+            return redirect(url_for('routes.rede1'))
+
+        # 4. Treinar a rede neural
+        try:
+            rede = RedeNeural1()
+            resultado = rede.treinar(
+                X=X,
+                y=y,
+                epocas=epocas,
+                neuronios=neuronios,
+                camadas=camadas
+            )
+
+            # 5. Salvar resultados no banco de dados
+            novo_treinamento = Treinamento(
+                epocas=epocas,
+                neuronios=neuronios,
+                camadas=camadas,
+                acuracia=resultado['acuracia'],
+                matriz_confusao=str(resultado['matriz_confusao']),
+                data_treinamento=datetime.now()
+            )
+            db.session.add(novo_treinamento)
+            db.session.commit()
+
+            # 6. Preparar dados para exibição
+            matriz_confusao = [
+                ["Classe Prevista 0", "Classe Prevista 1"],
+                ["Classe Real 0", resultado['matriz_confusao'][0][0]],
+                ["Classe Real 1", resultado['matriz_confusao'][1][1]]
+            ]
+
+            return render_template('resultadoRede1.html',
+                                acuracia=f"{resultado['acuracia']:.2%}",
+                                matriz_confusao=matriz_confusao,
+                                epocas=epocas,
+                                neuronios=neuronios,
+                                camadas=camadas)
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro durante o treinamento: {str(e)}', 'error')
+            return redirect(url_for('routes.resultadoRede1'))
+
+    except ValueError:
+        flash('Por favor, insira valores numéricos válidos!', 'error')
+        return redirect(url_for('routes.resultadoRede1'))
+        
+    except Exception as e:
+        flash(f'Erro inesperado: {str(e)}', 'error')
+        return redirect(url_for('routes.resultadoRede1'))
 
 
 
-# --> REDE 2 <--
-
+# Rotas para Rede Neural 2 (mantidas inalteradas para brevidade)
 @bp.route('/upload', methods=['POST'])
 def upload():
     num_pastas = int(request.form['num_pastas'])
-    timestamp = str(int(time.time()))  # Usar o timestamp para nomear a pasta 'testeN'
+    timestamp = str(int(time.time()))
     pasta_principal = os.path.join(UPLOAD_FOLDER, f'teste{timestamp}')
     os.makedirs(pasta_principal, exist_ok=True)
 
@@ -237,84 +314,59 @@ def upload():
         pasta_destino = os.path.join(pasta_principal, pasta_nome)
         os.makedirs(pasta_destino, exist_ok=True)
 
-        # Criando as pastas 'treinamento' e 'teste' dentro de cada classe
         pasta_treinamento = os.path.join(pasta_destino, 'treinamento')
         pasta_teste = os.path.join(pasta_destino, 'teste')
         os.makedirs(pasta_treinamento, exist_ok=True)
         os.makedirs(pasta_teste, exist_ok=True)
 
-        # Salvar arquivos e dividi-los entre treinamento e teste
         arquivos = request.files.getlist(f'upload{i}')
-        
-        # Dividir os arquivos em 80% para treinamento e 20% para teste
-        random.shuffle(arquivos)  # Embaralha a lista de arquivos
-
-        num_treinamento = int(len(arquivos) * 0.8)  # 80% para treinamento
+        random.shuffle(arquivos)
+        num_treinamento = int(len(arquivos) * 0.8)
         arquivos_treinamento = arquivos[:num_treinamento]
         arquivos_teste = arquivos[num_treinamento:]
 
-        # Salvar arquivos na pasta 'treinamento'
         for arquivo in arquivos_treinamento:
             caminho_arquivo = os.path.join(pasta_treinamento, arquivo.filename)
             arquivo.save(caminho_arquivo)
 
-        # Salvar arquivos na pasta 'teste'
         for arquivo in arquivos_teste:
             caminho_arquivo = os.path.join(pasta_teste, arquivo.filename)
             arquivo.save(caminho_arquivo)
 
     return redirect(url_for('routes.variaveisRede2'))
 
-
 @bp.route('/enviar2', methods=['POST'])
 def enviar2():
-    # Capturando os dados do formulário
     epocas = request.form.get('epocas')
     neuronios = request.form.get('neuronios')
     camadas = request.form.get('camadas')
 
-    # Validação simples para garantir que os campos não estão vazios
     if not epocas or not neuronios or not camadas:
-        flash('Por favor, preencha todos os campos.')
-        return redirect(url_for('routes.rede_neural1'))
-    
+        flash('Por favor, preencha todos os campos.', 'erro')
+        return redirect(url_for('routes.variaveisRede2'))
+
     try:
         epocas = int(epocas)
         neuronios = int(neuronios)
         camadas = int(camadas)
-        # Chama a função de treinamento CNN
-        acc, cm = treinar_rede_neural_cnn()
-        # Salva os parâmetros no banco
+        acc, cm = treinar_rede_neural_cnn()  # Assume função de treinamento CNN
         novo_treinamento = Treinamento(
             epocas=epocas,
             neuronios=neuronios,
-            enlaces=camadas,  # Usando enlaces para camadas convolucionais
-            resultado=f"Accuracy: {acc:.4f}"
+            enlaces=camadas,
+            resultado=f"Acurácia: {acc:.4f}"
         )
         db.session.add(novo_treinamento)
         db.session.commit()
-        # Renderiza o template com os resultados
-        return render_template('resultadoRede2.html', 
-                             acuracia=acc, 
-                             matriz_confusao=cm.tolist(),
-                             epocas=epocas,
-                             neuronios=neuronios,
-                             camadas=camadas)
+        return render_template('resultadoRede2.html',
+                              acuracia=acc,
+                              matriz_confusao=cm.tolist(),
+                              epocas=epocas,
+                              neuronios=neuronios,
+                              camadas=camadas)
     except Exception as e:
-        flash(f'Erro ao treinar a CNN: {str(e)}')
+        flash(f'Erro ao treinar a CNN: {str(e)}', 'erro')
         return redirect(url_for('routes.variaveisRede2'))
-
-    # Armazenar os dados na sessão
-   # session['dados_rede_neural'] = {
-   #     'epocas': epocas,
-    #    'neuronios': neuronios,
-    #    'camadas': camadas
-   # }
-
-   # flash('Dados armazenados com sucesso!')
-
-    # Redireciona para a próxima etapa
-    #return redirect(url_for('routes.resultadoRede2'))
 
 
 

@@ -1,39 +1,58 @@
-from PIL import Image
-import numpy as np
 import os
-import csv
-from models import IntervaloCor
+import numpy as np
+import pandas as pd
+from PIL import Image
 
-def identificar_classe_pixel(r, g, b, intervalos):
-    for intervalo in intervalos:
-        if (intervalo.r_min <= r <= intervalo.r_max and
-            intervalo.g_min <= g <= intervalo.g_max and
-            intervalo.b_min <= b <= intervalo.b_max):
-            return intervalo.classe
-    return None  # Pixel que não pertence a nenhum intervalo
+def hex_para_rgb_normalizado(hex_color):
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return [r / 255.0, g / 255.0, b / 255.0]
 
-def converter_imagens_para_csv(pasta_imagens='arquivoUsuario', saida_csv='arquivos/dados.csv'):
-    intervalos = IntervaloCor.query.all()
+def comparar_cores(cor_pixel, atributo, tolerancia=15):
+    r, g, b = cor_pixel
+    r_attr, g_attr, b_attr = atributo
+    return (abs(r - r_attr) <= tolerancia / 255.0 and
+            abs(g - g_attr) <= tolerancia / 255.0 and
+            abs(b - b_attr) <= tolerancia / 255.0)
 
-    dados = []
+def processar_imagem(imagem_path, atributos1, atributos2):
+    try:
+        img = Image.open(imagem_path).convert('RGB')
+        pixels = np.array(img)
+        contagem_classe1 = [0] * len(atributos1)
+        contagem_classe2 = [0] * len(atributos2)
 
-    for subdir, dirs, files in os.walk(pasta_imagens):
-        for file in files:
-            caminho_imagem = os.path.join(subdir, file)
-            if caminho_imagem.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
-                img = Image.open(caminho_imagem).convert('RGB')
-                img_array = np.array(img)
-                for linha in img_array:
-                    for pixel in linha:
-                        r, g, b = pixel
-                        classe = identificar_classe_pixel(r, g, b, intervalos)
-                        if classe:  # Só salva se identificar a classe
-                            dados.append([r, g, b, classe])
+        for linha in pixels:
+            for pixel in linha:
+                r, g, b = [v / 255.0 for v in pixel]
+                for i, attr in enumerate(atributos1):
+                    if comparar_cores((r, g, b), attr):
+                        contagem_classe1[i] += 1
+                        break
+                for j, attr in enumerate(atributos2):
+                    if comparar_cores((r, g, b), attr):
+                        contagem_classe2[j] += 1
+                        break
 
-    # Salvar no CSV
-    with open(saida_csv, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['R', 'G', 'B', 'Classe'])  # Cabeçalho
-        writer.writerows(dados)
+        return contagem_classe1, contagem_classe2
+    except Exception as e:
+        print(f"Erro ao processar {imagem_path}: {e}")
+        return [0]*len(atributos1), [0]*len(atributos2)
 
-    return saida_csv
+def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, caminho_csv="arquivos/tabela_cores.csv"):
+    resultados = []
+    for imagem_path in imagens_treinamento:
+        contagem_classe1, contagem_classe2 = processar_imagem(imagem_path, atributos1, atributos2)
+        soma1 = sum(contagem_classe1)
+        soma2 = sum(contagem_classe2)
+        classe = 1 if soma1 > soma2 else 2
+        resultados.append(contagem_classe1 + contagem_classe2 + [classe])
+    
+    colunas = [f'atributo{i+1}_classe1' for i in range(3)] + \
+              [f'atributo{i+1}_classe2' for i in range(3)] + ['classe']
+    df_resultados = pd.DataFrame(resultados, columns=colunas)
+    os.makedirs('arquivos', exist_ok=True)
+    df_resultados.to_csv(caminho_csv, index=False)
+    return caminho_csv

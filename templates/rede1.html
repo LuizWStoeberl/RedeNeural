@@ -5,64 +5,122 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload e Atributos</title>
     <link rel="stylesheet" href="../static/styles.css">
+    <style>
+        .classe-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .classe-title {
+            color: #333;
+            margin-top: 0;
+        }
+        .color-input-group {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        .color-input-group label {
+            margin-right: 10px;
+            min-width: 250px;
+        }
+        .required-field::after {
+            content: " *";
+            color: red;
+        }
+    </style>
 </head>
 <body>
-    <h1 class="titulo">Upload de pastas e seleção de cores</h1>
-    
-    <form id="uploadForm" action="/upload_pasta_atributos" method="POST" enctype="multipart/form-data">
-        <!-- Classe 1 -->
-        <div>
-            <label for="pasta1">Selecione os arquivos da classe 1:</label>
-            <input type="file" id="pasta1" name="arquivos1[]" webkitdirectory multiple required>
-        </div>
+    <div class="container">
+        <h1 class="titulo">Upload de pastas e seleção de cores</h1>
+        
+        <form id="uploadForm" action="/upload_pasta_atributos" method="POST" enctype="multipart/form-data">
+            <!-- Classe 1 -->
+            <div class="classe-section">
+                <h2 class="classe-title">Classe 1</h2>
+                
+                <div class="form-group">
+                    <label for="pasta1" class="required-field">Selecione os arquivos da classe 1:</label>
+                    <input type="file" id="pasta1" name="arquivos1[]" webkitdirectory directory multiple required 
+                           aria-required="true" aria-describedby="pasta1-help">
+                    <small id="pasta1-help">Selecione a pasta contendo todas as imagens para a classe 1</small>
+                </div>
 
-        <div>
-            <label for="atributo1_1">Escolha a primeira cor para a classe 1:</label>
-            <input type="color" id="atributo1_1" name="atributos1[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo1_1" class="required-field">Primeira cor para a classe 1:</label>
+                    <input type="color" id="atributo1_1" name="atributos1[]" required aria-required="true" value="#ff0000">
+                </div>
 
-        <div>
-            <label for="atributo2_1">Escolha a segunda cor para a classe 1:</label>
-            <input type="color" id="atributo2_1" name="atributos1[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo2_1" class="required-field">Segunda cor para a classe 1:</label>
+                    <input type="color" id="atributo2_1" name="atributos1[]" required aria-required="true" value="#00ff00">
+                </div>
 
-        <div>
-            <label for="atributo3_1">Escolha a terceira cor para a classe 1:</label>
-            <input type="color" id="atributo3_1" name="atributos1[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo3_1" class="required-field">Terceira cor para a classe 1:</label>
+                    <input type="color" id="atributo3_1" name="atributos1[]" required aria-required="true" value="#0000ff">
+                </div>
+            </div>
 
-        <!-- Classe 2 -->
-        <div>
-            <label for="pasta2">Selecione os arquivos da classe 2:</label>
-            <input type="file" id="pasta2" name="arquivos2[]" webkitdirectory multiple required>
-        </div>
+            <!-- Classe 2 -->
+            <div class="classe-section">
+                <h2 class="classe-title">Classe 2</h2>
+                
+                <div class="form-group">
+                    <label for="pasta2" class="required-field">Selecione os arquivos da classe 2:</label>
+                    <input type="file" id="pasta2" name="arquivos2[]" webkitdirectory directory multiple required 
+                           aria-required="true" aria-describedby="pasta2-help">
+                    <small id="pasta2-help">Selecione a pasta contendo todas as imagens para a classe 2</small>
+                </div>
 
-        <div>
-            <label for="atributo1_2">Escolha a primeira cor para a classe 2:</label>
-            <input type="color" id="atributo1_2" name="atributos2[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo1_2" class="required-field">Primeira cor para a classe 2:</label>
+                    <input type="color" id="atributo1_2" name="atributos2[]" required aria-required="true" value="#ffff00">
+                </div>
 
-        <div>
-            <label for="atributo2_2">Escolha a segunda cor para a classe 2:</label>
-            <input type="color" id="atributo2_2" name="atributos2[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo2_2" class="required-field">Segunda cor para a classe 2:</label>
+                    <input type="color" id="atributo2_2" name="atributos2[]" required aria-required="true" value="#00ffff">
+                </div>
 
-        <div>
-            <label for="atributo3_2">Escolha a terceira cor para a classe 2:</label>
-            <input type="color" id="atributo3_2" name="atributos2[]" required>
-        </div>
+                <div class="color-input-group">
+                    <label for="atributo3_2" class="required-field">Terceira cor para a classe 2:</label>
+                    <input type="color" id="atributo3_2" name="atributos2[]" required aria-required="true" value="#ff00ff">
+                </div>
+            </div>
 
-        <!-- Botão de Enviar -->
-        <button type="submit">Enviar</button>
-    </form>
-
-    <br><br>
-
-    <div>
-        <a href="/">
-            <button>Voltar</button>
-        </a>
+            <!-- Botão de Enviar -->
+            <div class="form-actions">
+                <button type="submit" class="btn-submit">Enviar</button>
+                <a href="/" class="btn-back">Voltar</a>
+            </div>
+        </form>
     </div>
 
+    <script>
+        // Validação básica do formulário
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            let isValid = true;
+            
+            // Verifica se pelo menos um arquivo foi selecionado em cada pasta
+            const pasta1 = document.getElementById('pasta1');
+            const pasta2 = document.getElementById('pasta2');
+            
+            if (pasta1.files.length === 0) {
+                alert('Por favor, selecione pelo menos um arquivo para a Classe 1');
+                isValid = false;
+            }
+            
+            if (pasta2.files.length === 0) {
+                alert('Por favor, selecione pelo menos um arquivo para a Classe 2');
+                isValid = false;
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+            }
+        });
+    </script>
 </body>
-</html>
+</html
