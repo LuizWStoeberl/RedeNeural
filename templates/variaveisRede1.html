@@ -5,42 +5,130 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuração Rede Neural</title>
     <link rel="stylesheet" href="../static/styles.css">
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn-submit {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn-back {
+            background-color: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
 </head>
 <body>
-    <h1 class="titulo"> Você está na Rede Neural 1. Escolha as variáveis</h1>
+    <div class="container">
+        <h1 class="titulo">Configuração da Rede Neural</h1>
+        <p>Defina os parâmetros para o treinamento da rede neural:</p>
 
-    <div class="pixelAll">
-        <form action="/enviar" method="POST">
+        <form action="/treinar_rede" method="POST">
             <!-- Número de Épocas -->
-            <div class="formularioCores">
+            <div class="form-group">
                 <label for="epocas">Número de Épocas:</label>
-                <input type="number" id="epocas" name="epocas" placeholder="Número de épocas" required>
+                <input type="number" id="epocas" name="epocas" 
+                       min="1" max="1000" 
+                       placeholder="Ex: 100" 
+                       required
+                       aria-required="true">
+                <p class="help-text">Número de vezes que o conjunto de dados será processado (1-1000)</p>
             </div>
 
-            <!-- Número de Neurônios -->
-            <div class="formularioCores">
-                <label for="neuronios">Número de Neurônios:</label>
-                <input type="number" id="neuronios" name="neuronios" placeholder="Número de neurônios" required>
+            <!-- Número de Neurônios por Camada -->
+            <div class="form-group">
+                <label for="neuronios">Número de Neurônios por Camada:</label>
+                <input type="number" id="neuronios" name="neuronios" 
+                       min="1" max="1000" 
+                       placeholder="Ex: 64" 
+                       required
+                       aria-required="true">
+                <p class="help-text">Quantidade de neurônios em cada camada oculta (1-1000)</p>
             </div>
 
-            <!-- Número de Enlaces -->
-            <div class="formularioCores">
-                <label for="enlaces">Número de Enlaces:</label>
-                <input type="number" id="enlaces" name="enlaces" placeholder="Número de Enlaces" required>
+            <!-- Número de Camadas Ocultas -->
+            <div class="form-group">
+                <label for="camadas">Número de Camadas Ocultas:</label>
+                <input type="number" id="camadas" name="camadas" 
+                       min="1" max="10" 
+                       placeholder="Ex: 3" 
+                       required
+                       aria-required="true">
+                <p class="help-text">Quantidade de camadas ocultas na rede (1-10)</p>
             </div>
 
             <!-- Botão de Enviar -->
-            <div class="botaoEnviar">
-                <button type="submit">Próximo</button>
+            <div class="form-group">
+                <button type="submit" class="btn-submit">Treinar Rede</button>
             </div>
         </form>
+
+        <!-- Botão Voltar -->
+        <div>
+            <a href="/treinar_rede" class="btn-back">Voltar</a>
+        </div>
     </div>
 
-    <!-- Botão Voltar -->
-    <div>
-        <a href="/templates/rede1.html">
-            <button>Voltar</button>
-        </a>
-    </div>
+    <script>
+        // Validação básica do formulário
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const epocas = document.getElementById('epocas').value;
+            const neuronios = document.getElementById('neuronios').value;
+            const camadas = document.getElementById('camadas').value;
+            
+            if (epocas < 1 || epocas > 1000) {
+                alert('O número de épocas deve estar entre 1 e 1000');
+                e.preventDefault();
+                return;
+            }
+            
+            if (neuronios < 1 || neuronios > 1000) {
+                alert('O número de neurônios deve estar entre 1 e 1000');
+                e.preventDefault();
+                return;
+            }
+            
+            if (camadas < 1 || camadas > 10) {
+                alert('O número de camadas deve estar entre 1 e 10');
+                e.preventDefault();
+                return;
+            }
+        });
+    </script>
 </body>
 </html>
