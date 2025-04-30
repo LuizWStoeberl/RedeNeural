@@ -43,3 +43,12 @@ class ModeloTreinado(db.Model):
         )
         db.session.add(novo_modelo)
         db.session.commit()
+
+class ClassePersonagem(db.Model):
+    __tablename__ = 'classes_personagens'
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), nullable=False, unique=True)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relação com os modelos treinados (opcional)
+    modelos = db.relationship('ModeloTreinado', backref='classe', lazy=True)

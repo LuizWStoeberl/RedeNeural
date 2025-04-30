@@ -25,8 +25,6 @@ def definir_cores():
 
     return jsonify({"mensagem": f"Intervalos de cor para a classe {classe} salvos com sucesso!"})
 
-bp_cores = Blueprint('cores', __name__)
-
 def hex_para_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     r = int(hex_color[0:2], 16)

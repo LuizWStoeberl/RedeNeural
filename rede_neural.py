@@ -5,6 +5,7 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 from PIL import Image
+import processar_imagem
 
 from models import Treinamento
 from models import db

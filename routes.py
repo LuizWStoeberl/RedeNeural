@@ -2,6 +2,8 @@ from flask import Blueprint, request, redirect, url_for, render_template, flash,
 import random 
 import shutil
 import time
+from flask import jsonify
+import treinar_rede_neural
 from models import db, Treinamento
 from datetime import datetime
 from processar_imagem import processar_todas_imagens
@@ -419,17 +421,14 @@ def treinar_cnn_route():
 def classificar_imagem():
     try:
         arquivo = request.files['imagem']
-        caminho_temporario = os.path.join('Uploads_imagens', arquivo.filename)
-        os.makedirs('Uploads_imagens', exist_ok=True)
-        arquivo.save(caminho_temporario)
-        modelo = load_model('modelos_salvos/modelo_cnn.h5')  # Ajustado para usar modelo_cnn.h5
-        img = image.load_img(caminho_temporario, target_size=(150, 150))  # Ajustado para 150x150
-        img_array = image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-        img_array /= 255.0
-        predicao = modelo.predict(img_array)
-        classe_predita = int(predicao[0][0] > 0.5)  # Para classificação binária
-        personagem = CLASSES_PERSONAGENS.get(classe_predita, "Desconhecido")
+        # ... (código existente de processamento da imagem)
+        
+        # Obtém classes do banco
+        classes = {idx: classe.nome for idx, classe in enumerate(ClassePersonagem.query.all())}
+        
+        classe_predita = int(predicao[0][0] > 0.5)
+        personagem = classes.get(classe_predita, "Desconhecido")
+        
         return jsonify({
             "mensagem": f"Personagem identificado: {personagem}",
             "classe_predita": classe_predita
@@ -508,3 +507,21 @@ def selecionar_modelo():
         'caminho_modelo': modelo.caminho_modelo,
         'nome_modelo': modelo.nome_modelo
     })
+
+@bp.route('/definir_classes', methods=['GET', 'POST'])
+def definir_classes():
+    if request.method == 'POST':
+        nomes_classes = request.form.getlist('nomes_classes[]')
+        
+        for nome in nomes_classes:
+            if nome.strip():  # Ignora strings vazias
+                nova_classe = ClassePersonagem(nome=nome.strip())
+                db.session.add(nova_classe)
+        
+        db.session.commit()
+        flash('Classes definidas com sucesso!', 'success')
+        return redirect(url_for('routes.variaveisRede1'))
+
+    # GET: Mostra formulário
+    classes_existentes = ClassePersonagem.query.all()
+    return render_template('definir_classes.html', classes=classes_existentes)
