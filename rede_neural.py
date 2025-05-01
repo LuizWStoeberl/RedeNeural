@@ -74,7 +74,7 @@ def processar_imagens():
     salvar_resultados_csv(imagens_treinamento, atributos1, atributos2)
     return "Imagens processadas com sucesso!"
 
-def salvar_resultados_csv(imagens_treinamento, atributos1, atributos2, caminho_csv="arquivos/tabela_cores.csv"):
+def salvar_resultados_csv(imagens_treinamento, atributos1, atributos2, caminho_csv="caminho_csv"):
     """Processa todas as imagens de treinamento e salva os resultados no CSV."""
     resultados = []
     
@@ -123,7 +123,7 @@ def treinar_rede_neural(X, y, epocas, neuronios, enlaces):
 
 def processar_dados(epocas, neuronios, enlaces):
     """Processa os dados de entrada e treina a rede neural, retornando a acurácia e a matriz de confusão."""
-    caminho_csv = "arquivos/tabela_cores.csv"
+    caminho_csv = "caminho_csv"
 
     if not os.path.exists(caminho_csv):
         raise FileNotFoundError("Arquivo de cores não encontrado. Verifique se o arquivo foi salvo corretamente.")
