@@ -24,6 +24,8 @@ bp = Blueprint("routes", __name__)
 ARQUIVOSREDE1_DIR = 'arquivosRede1'
 os.makedirs(ARQUIVOSREDE1_DIR, exist_ok=True)
 
+UPLOAD_FOLDER = 'arquivosRede2'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Helpers
 
