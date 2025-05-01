@@ -3,7 +3,7 @@ import random
 import shutil
 import time
 import jsonify
-from models import db, Treinamento
+from models import *
 from datetime import datetime
 import os
 import numpy as np
@@ -17,6 +17,8 @@ import pandas as pd
 from rede_neural1 import RedeNeural1
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
+from cnn_model import *
+
 
 # Configurações
 bp = Blueprint("routes", __name__)
@@ -259,7 +261,7 @@ def home():
 def rede1():
     return render_template("rede1.html")
 
-@bp.route("/rede2.html")
+@bp.route("/rede2")
 def rede2():
     return render_template("rede2.html")
 
@@ -390,18 +392,23 @@ def treinar_rede():
 def upload():
     num_pastas = int(request.form['num_pastas'])
     timestamp = str(int(time.time()))
+    
+    # Pasta principal do upload do usuário
     pasta_principal = os.path.join(UPLOAD_FOLDER, f'teste{timestamp}')
-    os.makedirs(pasta_principal, exist_ok=True)
+    pasta_treinamento = os.path.join(pasta_principal, 'treinamento2')
+    pasta_teste = os.path.join(pasta_principal, 'teste2')
+
+    os.makedirs(pasta_treinamento, exist_ok=True)
+    os.makedirs(pasta_teste, exist_ok=True)
 
     for i in range(1, num_pastas + 1):
-        pasta_nome = request.form[f'classe{i}']
-        pasta_destino = os.path.join(pasta_principal, pasta_nome)
-        os.makedirs(pasta_destino, exist_ok=True)
+        classe_nome = request.form[f'classe{i}']
 
-        pasta_treinamento = os.path.join(pasta_destino, 'treinamento')
-        pasta_teste = os.path.join(pasta_destino, 'teste')
-        os.makedirs(pasta_treinamento, exist_ok=True)
-        os.makedirs(pasta_teste, exist_ok=True)
+        # Cria subpastas por classe dentro de treinamento2/ e teste2/
+        caminho_treinamento_classe = os.path.join(pasta_treinamento, classe_nome)
+        caminho_teste_classe = os.path.join(pasta_teste, classe_nome)
+        os.makedirs(caminho_treinamento_classe, exist_ok=True)
+        os.makedirs(caminho_teste_classe, exist_ok=True)
 
         arquivos = request.files.getlist(f'upload{i}')
         random.shuffle(arquivos)
@@ -410,11 +417,11 @@ def upload():
         arquivos_teste = arquivos[num_treinamento:]
 
         for arquivo in arquivos_treinamento:
-            caminho_arquivo = os.path.join(pasta_treinamento, arquivo.filename)
+            caminho_arquivo = os.path.join(caminho_treinamento_classe, arquivo.filename)
             arquivo.save(caminho_arquivo)
 
         for arquivo in arquivos_teste:
-            caminho_arquivo = os.path.join(pasta_teste, arquivo.filename)
+            caminho_arquivo = os.path.join(caminho_teste_classe, arquivo.filename)
             arquivo.save(caminho_arquivo)
 
     return redirect(url_for('routes.variaveisRede2'))
@@ -427,175 +434,80 @@ def enviar2():
 
     if not epocas or not neuronios or not camadas:
         flash('Por favor, preencha todos os campos.', 'erro')
-        return redirect(url_for('routes.variaveisRede2'))
+        return redirect(url_for('routes.erro'))
 
     try:
         epocas = int(epocas)
         neuronios = int(neuronios)
         camadas = int(camadas)
-        acc, cm = treinar_rede_neural_cnn()  # Assume função de treinamento CNN
+        
+        # Salvar configuração no banco antes de treinar
         novo_treinamento = Treinamento(
             epocas=epocas,
             neuronios=neuronios,
             enlaces=camadas,
-            resultado=f"Acurácia: {acc:.4f}"
+            #data_treinamento=datetime.now()
         )
         db.session.add(novo_treinamento)
         db.session.commit()
+        
+        
+        resultado = treinar_rede_neural_cnn()
+        
+        # Atualizar resultado no banco
+        novo_treinamento.resultado = f"Acurácia: {resultado['acuracia']:.4f} | Validação: {resultado['val_acuracia']:.4f}"
+        novo_treinamento.matriz_confusao = str(resultado['matriz_confusao'])
+        db.session.commit()
+        
         return render_template('resultadoRede2.html',
-                              acuracia=acc,
-                              matriz_confusao=cm.tolist(),
-                              epocas=epocas,
-                              neuronios=neuronios,
-                              camadas=camadas)
+                            acuracia=resultado['acuracia'],
+                            val_acuracia=resultado['val_acuracia'],
+                            matriz_confusao=resultado['matriz_confusao'],
+                            epocas=epocas,
+                            neuronios=neuronios,
+                            camadas=camadas)
     except Exception as e:
         flash(f'Erro ao treinar a CNN: {str(e)}', 'erro')
         return redirect(url_for('routes.variaveisRede2'))
-
-
-
-
-
-#POR ENQUANTO DEIXAR QUIETO
-
-
-
-@bp.route('/salvar', methods=['POST'])
-def salvar():
-    dados = request.json
-    linha_count = dados.get("linhaCount", 0)
-    quantidade_por_linha = dados.get("quantidadePorLinha", 0)
-    cores = dados.get("cores", [])
-    labels = dados.get("labels", []) 
-
-    nome_arquivo = "tabela_cores.csv" 
-    caminho_arquivo = os.path.join(ARQUIVOSREDE1_DIR, nome_arquivo)
-
-    with open(caminho_arquivo, 'w') as f:
-        header = [f"Cor{i+1}" for i in range(quantidade_por_linha)] + ["Classe"]
-        f.write(','.join(header) + '\n')
- 
-        for linha_cores, classe in zip(cores, labels):
-            linha_formatada = ','.join(linha_cores) + f",{classe}\n"
-            f.write(linha_formatada)
-
-    return {'message': 'Arquivo salvo com sucesso!'}
-
-
-@bp.route('/formulario_classes', methods=['GET'])
-def formulario_classes():
-    return render_template("upload_classes.html")
-
-def encontrar_ultima_pasta_teste(base_dir):
-    pastas_teste = [p for p in os.listdir(base_dir) if p.startswith("Teste") and os.path.isdir(os.path.join(base_dir, p))]
-    if not pastas_teste:
-        return None
-    pastas_teste.sort(key=lambda x: int(x.replace("Teste", "")))
-    return os.path.join(base_dir, pastas_teste[-1])
-
-numero_de_classes = 0
-
-def criar_nova_pasta_teste(base_dir):
-    i = 1
-    while True:
-        nome_pasta = f"Teste{i}"
-        caminho_completo = os.path.join(base_dir, nome_pasta)
-        if not os.path.exists(caminho_completo):
-            os.makedirs(caminho_completo)
-            return caminho_completo
-        i += 1
-
-@bp.route("/treinar_cnn", methods=["POST"])
-def treinar_cnn():
-    try:
-        from cnn_model import treinar_cnn
-        acc, cm = treinar_cnn()
-        return jsonify({"mensagem": "CNN treinada com sucesso", "acuracia": acc})
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400    
-
-
-@bp.route('/processar-imagens', methods=['POST'])
-def processar_imagens_route():
-    try:
-        caminho_csv = processar_todas_imagens('uploads_imagens')  # pasta onde o usuário envia as imagens
-        return jsonify({"mensagem": "Imagens processadas com sucesso!", "csv_gerado": caminho_csv})
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
-
-@bp.route('/treinar-cnn', methods=['POST'])
-def treinar_cnn_route():
-    try:
-        resultado = treinar_cnn('uploads_imagens')  # Pasta base das imagens organizadas em subpastas (por classe)
-        return jsonify({"mensagem": "Treinamento concluído!", "resultado": resultado})
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
 
 @bp.route('/classificar-imagem', methods=['POST'])
 def classificar_imagem():
     try:
         arquivo = request.files['imagem']
-        caminho_temporario = os.path.join('Uploads_imagens', arquivo.filename)
-        os.makedirs('Uploads_imagens', exist_ok=True)
+        caminho_temporario = os.path.join('uploads_imagens', secure_filename(arquivo.filename))
+        os.makedirs('uploads_imagens', exist_ok=True)
         arquivo.save(caminho_temporario)
-        modelo = load_model('modelos_salvos/modelo_cnn.h5')  # Ajustado para usar modelo_cnn.h5
-        img = image.load_img(caminho_temporario, target_size=(150, 150))  # Ajustado para 150x150
-        img_array = image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-        img_array /= 255.0
-        predicao = modelo.predict(img_array)
-        classe_predita = int(predicao[0][0] > 0.5)  # Para classificação binária
-        personagem = CLASSES_PERSONAGENS.get(classe_predita, "Desconhecido")
-        return jsonify({
-            "mensagem": f"Personagem identificado: {personagem}",
-            "classe_predita": classe_predita
-        })
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
-    
-@bp.route('/classificar-imagem-densa', methods=['POST'])
-def classificar_imagem_densa():
-    try:
-        from pixel import converter_imagens_para_csv
-        arquivo = request.files['imagem']
-        caminho_temporario = os.path.join('Uploads_imagens', arquivo.filename)
-        os.makedirs('Uploads_imagens', exist_ok=True)
-        arquivo.save(caminho_temporario)
-        # Converte a imagem para CSV
-        pasta_temp = 'temp_imagem'
-        os.makedirs(pasta_temp, exist_ok=True)
-        shutil.move(caminho_temporario, os.path.join(pasta_temp, arquivo.filename))
-        caminho_csv = converter_imagens_para_csv(pasta_temp)
-        # Classifica usando a rede densa
-        from savemodel import classificar_nova_imagem
-        previsoes = classificar_nova_imagem(caminho_csv)
-        classe_predita = int(previsoes[0])  # Assume saída binária
-        personagem = CLASSES_PERSONAGENS.get(classe_predita, "Desconhecido")
-        # Remove pasta temporária
-        shutil.rmtree(pasta_temp)
-        return jsonify({
-            "mensagem": f"Personagem identificado: {personagem}",
-            "classe_predita": classe_predita
-        })
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
-    
-@bp.route('/definir_intervalos_cor', methods=['POST'])
-def definir_intervalos_cor():
-    dados = request.json  # Deve vir uma lista de intervalos
-    for intervalo in dados:
-        cor = IntervaloCor(
-            classe=intervalo['classe'],
-            r_min=intervalo['r_min'],
-            r_max=intervalo['r_max'],
-            g_min=intervalo['g_min'],
-            g_max=intervalo['g_max'],
-            b_min=intervalo['b_min'],
-            b_max=intervalo['b_max'],
+        
+        # Carregar modelo CNN
+        from cnn_model import carregar_modelo_cnn
+        modelo = carregar_modelo_cnn()
+        
+        # Pré-processar imagem
+        img = tf.keras.preprocessing.image.load_img(
+            caminho_temporario, 
+            target_size=(150, 150)
         )
-        db.session.add(cor)
-    db.session.commit()
-    return jsonify({'mensagem': 'Intervalos de cor salvos com sucesso!'})
+        img_array = tf.keras.preprocessing.image.img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0) / 255.0
+        
+        # Fazer previsão
+        predicao = modelo.predict(img_array)
+        classe_predita = int(predicao[0][0] > 0.5)
+        
+        # Mapear classe para nome (ajuste conforme suas classes)
+        CLASSES = {0: "Classe1", 1: "Classe2"}
+        classe_nome = CLASSES.get(classe_predita, "Desconhecido")
+        
+        return jsonify({
+            "mensagem": f"Imagem classificada como: {classe_nome}",
+            "classe_predita": classe_predita,
+            "probabilidade": float(predicao[0][0])
+        })
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+# ROTAS BANCO DE DADOS
 
 @bp.route('/modelos', methods=['GET'])
 def listar_modelos():
