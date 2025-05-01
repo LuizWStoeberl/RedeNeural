@@ -31,6 +31,7 @@ class ModeloTreinado(db.Model):
     data_treinamento = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     tipo_modelo = db.Column(db.String(50), nullable=False)
     resultado = db.Column(db.String(100))
+    classe_id = db.Column(db.Integer, db.ForeignKey('classes_personagens.id'))
 
     @staticmethod
     def salvar_modelo(nome_arquivo, tipo_modelo, resultado):

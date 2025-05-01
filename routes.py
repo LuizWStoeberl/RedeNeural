@@ -2,6 +2,7 @@ from flask import Blueprint,request, redirect, url_for, render_template, flash, 
 import random
 import shutil
 import time
+import jsonify
 from models import db, Treinamento
 from datetime import datetime
 import os
@@ -15,6 +16,7 @@ from sklearn.metrics import confusion_matrix
 import pandas as pd
 from rede_neural1 import RedeNeural1
 from PIL import Image
+from sklearn.preprocessing import LabelEncoder
 
 # Configurações
 bp = Blueprint("routes", __name__)
@@ -323,87 +325,59 @@ def upload_pasta_atributos():
 @bp.route('/treinar_rede', methods=['POST'])
 def treinar_rede():
     try:
-        # 1. Validar e obter parâmetros do formulário
+        # 1. Validar parâmetros
         epocas = int(request.form.get('epocas', 0))
         neuronios = int(request.form.get('neuronios', 0))
         camadas = int(request.form.get('camadas', 0))
-        
-        print(f"Epocas: {epocas}, Neuronios: {neuronios}, Camadas: {camadas}")
-
         if not all([epocas > 0, neuronios > 0, camadas > 0]):
-            flash('Todos os parâmetros devem ser números positivos!', 'error')
-            return redirect(url_for('routes.upload'))
+            flash("Parâmetros inválidos!", "error")
+            return redirect(url_for('routes.variaveisRede1'))
 
-        # 2. Obter caminho do CSV da sessão
+        # 2. Validar CSV
         caminho_csv = session.get('caminho_csv')
-        print("Caminho do CSV:", caminho_csv)
-        if not caminho_csv or not os.path.exists(caminho_csv):
-            flash('Dados de treinamento não encontrados. Por favor, faça o upload novamente.', 'error')
-            return redirect(url_for('routes.upload1'))
+        if not caminho_csv:
+            flash("CSV não encontrado na sessão!", "error")
+            return redirect(url_for('routes.variaveisRede1'))
+        
+        df = pd.read_csv(caminho_csv)
+        if 'classe' not in df.columns:
+            flash("CSV não contém a coluna 'classe'.", "error")
+            return redirect(url_for('routes.variaveisRede1'))
 
-        # 3. Carregar e validar dataset
-        try:
-            df = pd.read_csv(caminho_csv)
-            colunas_esperadas = [
-                'atributo1_classe1', 'atributo2_classe1', 'atributo3_classe1',
-                'atributo1_classe2', 'atributo2_classe2', 'atributo3_classe2',
-                'classe'
-            ]
-            print(f"Colunas do DataFrame: {df.columns}")
-            if not all(col in df.columns for col in colunas_esperadas):
-                flash('Estrutura de dados inválida. Por favor, refaça o upload das imagens.', 'error')
-                return redirect(url_for('routes.upload2'))
+        # 3. Treinar (usando RedeNeural1)
+        from rede_neural1 import RedeNeural1
+        X = df.iloc[:, :-1].values
+        y = LabelEncoder().fit_transform(df['classe'])  # Converte classes para 0/1
+        
+        rede = RedeNeural1()
+        resultado = rede.treinar(X, y, epocas, neuronios, camadas)
+        acc, cm = treinar_rede()
+        
+        # 4. Salvar modelo e resultados
+        rede.model.save('modelos_salvos/modelo_rede1.keras')  # Garante que o modelo é salvo
+        novo_treinamento = Treinamento(
+            epocas=epocas,
+            neuronios=neuronios,
+            enlaces=camadas,
+            resultado=f"Acurácia: {acc:.4f}",
+            matriz_confusao=str(resultado['matriz_confusao']),
+            data_treinamento=datetime.now()
+        )
+        db.session.add(novo_treinamento)
+        db.session.commit()
 
-            X = df[colunas_esperadas[:-1]].values
-            y = df['classe'].values - 1  # Classes de (1,2) para (0,1)
-            print(f"X: {X[:5]}")  # Primeiros 5 exemplos de X
-            print(f"y: {y[:5]}")
-        except Exception as e:
-            flash(f'Erro ao ler dados de treinamento: {str(e)}', 'error')
-            return redirect(url_for('routes.upload3'))
-
-        # 4. Treinar a rede neural
-        try:
-            rede = RedeNeural1()
-            resultado = rede.treinar(X=X, y=y, epocas=epocas, neuronios=neuronios, camadas=camadas)
-
-            # 5. Salvar no banco de dados
-            novo_treinamento = Treinamento(
-                epocas=epocas,
-                neuronios=neuronios,
-                camadas=camadas,
-                acuracia=resultado['acuracia'],
-                matriz_confusao=str(resultado['matriz_confusao']),
-                data_treinamento=datetime.now()
-            )
-            db.session.add(novo_treinamento)
-            db.session.commit()
-
-            matriz_confusao = [
-                ["Classe Prevista 0", "Classe Prevista 1"],
-                ["Classe Real 0", resultado['matriz_confusao'][0][0]],
-                ["Classe Real 1", resultado['matriz_confusao'][1][1]]
-            ]
-
-            return render_template('resultadoRede1.html',
-                                   acuracia=f"{resultado['acuracia']:.2%}",
-                                   matriz_confusao=matriz_confusao,
-                                   epocas=epocas,
-                                   neuronios=neuronios,
-                                   camadas=camadas)
-
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Erro durante o treinamento: {str(e)}', 'error')
-            return redirect(url_for('routes.resultadoRede1'))
-
-    except ValueError:
-        flash('Por favor, insira valores numéricos válidos!', 'error')
-        return redirect(url_for('routes.resultadoRede1'))
+        # 5. Exibir resultados
+        return render_template('resultadoRede1.html',
+                            acuracia=f"{resultado['acuracia']:.2%}",
+                            matriz_confusao=resultado['matriz_confusao'].tolist(),
+                            epocas=epocas,
+                            neuronios=neuronios,
+                            camadas=camadas)
 
     except Exception as e:
-        flash(f'Erro inesperado: {str(e)}', 'error')
-        return redirect(url_for('routes.resultadoRede1'))
+        print(f"ERRO: {str(e)}")
+        flash(f"Falha no treinamento: {str(e)}", "error")
+        return redirect(url_for('routes.variaveisRede1'))
 
 
 
@@ -527,26 +501,6 @@ def criar_nova_pasta_teste(base_dir):
             return caminho_completo
         i += 1
 
-
-
-@bp.route("/treinar", methods=["POST"])
-def treinar():
-    try:
-        # 1. Converter imagens em CSV
-        caminho_csv = converter_imagens_para_csv()
-
-        # 2. Treinar a rede neural com base no CSV gerado
-        acc, cm = treinar_rede_neural(caminho_csv)
-
-        return jsonify({
-            "mensagem": "Treinamento concluído com sucesso!",
-            "acuracia": acc,
-            "matriz_confusao": cm.tolist()
-        })
-
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
-    
 @bp.route("/treinar_cnn", methods=["POST"])
 def treinar_cnn():
     try:

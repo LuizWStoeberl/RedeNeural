@@ -8,21 +8,29 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 class RedeNeural1:
     def __init__(self):
         self.model = None
-        self.NUM_ATRIBUTOS = 3  # 3 atributos por classe, fixo
+        # Define as funções de treino uma única vez
+        self.train_step = None
+        self.test_step = None
 
-    def criar_modelo(self, input_shape, neuronios, camadas):
-        """Cria o modelo da rede neural"""
-        model = Sequential()
-        model.add(Dense(neuronios, activation='relu', input_shape=input_shape))
-        for _ in range(camadas - 1):
-            model.add(Dense(neuronios, activation='relu'))
-        model.add(Dense(1, activation='sigmoid'))
-        model.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
-        return model
+    @tf.function(reduce_retracing=True)  # ← Adicione esta linha
+    def _train_step(self, x, y):
+        with tf.GradientTape() as tape:
+            predictions = self.model(x, training=True)
+            loss = self.model.loss(y, predictions)
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+        self.model.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+        return loss
 
     def treinar(self, X, y, epocas, neuronios, camadas):
-        """Treina a rede com os dados e parâmetros"""
-        try:
+        # ... (código existente)
+        
+        # Cria o modelo uma única vez
+        if self.model is None:
+            self.model = self._criar_modelo(X.shape[1:], neuronios, camadas)
+            self.train_step = self._train_step  # Atribui a função otimizada
+
+        for epoch in range(epocas):
+            loss = self.train_step(X_train, y_train)  # Usa a função pré-compilada
             # Dividir em treino/teste
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42
@@ -59,9 +67,9 @@ class RedeNeural1:
                 'matriz_confusao': cm,
                 'history': history.history
             }
+    
 
+def treinar(self, X, y, epocas, neuronios, camadas):
+    self.model.save('modelos_salvos/modelo_rede1.keras')  # Salva o modelo
+    return { ... }
 
-        
-        except Exception as e:
-            print(f"Erro durante treinamento: {str(e)}")
-            raise
