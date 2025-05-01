@@ -60,6 +60,8 @@ class RedeNeural1:
                 'history': history.history
             }
 
+
+        
         except Exception as e:
             print(f"Erro durante treinamento: {str(e)}")
             raise

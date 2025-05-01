@@ -4,7 +4,6 @@ import shutil
 import time
 from models import db, Treinamento
 from datetime import datetime
-from processar_imagem import processar_todas_imagens
 import os
 import numpy as np
 from tensorflow.keras.models import Sequential
@@ -71,12 +70,12 @@ def obter_atributos_rgb_normalizados(request_form):
 
     return atributos1_rgb, atributos2_rgb
 
-def comparar_cores(cor_pixel, atributo, tolerancia=15):
+def comparar_cores(cor_pixel, atributo, tolerancia=50):
     r, g, b = cor_pixel
     r_attr, g_attr, b_attr = atributo
-    return (abs(r - r_attr) <= tolerancia / 255.0 and
-            abs(g - g_attr) <= tolerancia / 255.0 and
-            abs(b - b_attr) <= tolerancia / 255.0)
+    distancia = ((r - r_attr) ** 2 + (g - g_attr) ** 2 + (b - b_attr) ** 2) ** 0.5
+    return distancia <= tolerancia / 255.0
+
 
 def distribuir_arquivos_treinamento_teste(pasta_origem):
     """Distribui arquivos entre treinamento e teste (80/20)"""
@@ -118,60 +117,79 @@ def processar_imagem(imagem_path, atributos1, atributos2):
     try:
         img = Image.open(imagem_path).convert('RGB')
         pixels = np.array(img)
+
         contagem_classe1 = [0] * len(atributos1)
         contagem_classe2 = [0] * len(atributos2)
 
-        # Percorre cada pixel da imagem e verifica se ele corresponde a alguma cor dos atributos
         for linha in pixels:
             for pixel in linha:
                 r, g, b = [v / 255.0 for v in pixel]
-                # Verificar se o pixel corresponde a algum dos atributos de Classe 1
+                correspondeu = False
+
+                # Verificar atributos da Classe 1
                 for i, attr in enumerate(atributos1):
                     if comparar_cores((r, g, b), attr):
                         contagem_classe1[i] += 1
-                        break
-                # Verificar se o pixel corresponde a algum dos atributos de Classe 2
-                for j, attr in enumerate(atributos2):
-                    if comparar_cores((r, g, b), attr):
-                        contagem_classe2[j] += 1
-                        break
+                        correspondeu = True
+                        break  # já classificou como classe 1
+
+                # Se não correspondeu à Classe 1, verifica Classe 2
+                if not correspondeu:
+                    for j, attr in enumerate(atributos2):
+                        if comparar_cores((r, g, b), attr):
+                            contagem_classe2[j] += 1
+                            break  # já classificou como classe 2
 
         return contagem_classe1, contagem_classe2
+
     except Exception as e:
         print(f"Erro ao processar {imagem_path}: {e}")
-        return [0]*len(atributos1), [0]*len(atributos2)
+        return [0] * len(atributos1), [0] * len(atributos2)
 
 def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, caminho_csv):
-    """Converte as imagens de treinamento para um CSV com suas características (contagem de pixels)."""
+    """Converte imagens de treinamento para CSV, tratando corretamente os atributos conforme a classe da imagem."""
     resultados = []
-    
-    # Processar todas as imagens de treinamento
+
     for imagem_path in imagens_treinamento:
-        contagem_classe1, contagem_classe2 = processar_imagem(imagem_path, atributos1, atributos2)
+        # Detecta a classe real com base no caminho
+        if "Classe1" in imagem_path:
+            atributos_classe1 = atributos1
+            atributos_classe2 = atributos2
+            classe_real = "Classe1"
+        else:
+            atributos_classe1 = atributos2
+            atributos_classe2 = atributos1
+            classe_real = "Classe2"
+
+        # Processa a imagem com os atributos organizados corretamente
+        contagem_classe1, contagem_classe2 = processar_imagem(imagem_path, atributos_classe1, atributos_classe2)
         soma1 = sum(contagem_classe1)
         soma2 = sum(contagem_classe2)
-        
-        # Definir a classe com mais pixels da cor correspondente
-        classe = 1 if soma1 > soma2 else 2
-        
-        # Adicionar as contagens e a classe à lista de resultados
+
+        print(f"Imagem: {imagem_path}, Classe: {classe_real}, Contagem Classe 1: {contagem_classe1}, Contagem Classe 2: {contagem_classe2}")
+        print(f"Soma Classe 1: {soma1}, Soma Classe 2: {soma2}")
+
+        # Atribuir a classe com base na soma maior
+        if soma1 > soma2:
+            classe = "Classe1"  # Classe com mais pixels da cor
+        elif soma2 > soma1:
+            classe = "Classe2"
+        else:
+            classe = classe_real  # Se as somas forem iguais, mantemos a classe real
+
         resultados.append(contagem_classe1 + contagem_classe2 + [classe])
-    
-    # Definir os nomes das colunas para o CSV
-    colunas = [f'atributo{i+1}_classe1' for i in range(3)] + \
-              [f'atributo{i+1}_classe2' for i in range(3)] + ['classe']
-    
-    # Criar o DataFrame com os resultados
+
+    # Geração dos nomes de coluna (genéricos, ou você pode substituí-los por nomes semânticos)
+    colunas = [f'atributo{i+1}_classe1' for i in range(len(atributos1))] + \
+              [f'atributo{i+1}_classe2' for i in range(len(atributos2))] + ['classe']
+
     df_resultados = pd.DataFrame(resultados, columns=colunas)
-    
-    # Garantir que o diretório para salvar o CSV exista
+
     os.makedirs(os.path.dirname(caminho_csv), exist_ok=True)
-    
-    # Salvar o DataFrame no arquivo CSV
     df_resultados.to_csv(caminho_csv, index=False)
-    
-    # Retornar o caminho do arquivo CSV
+
     return caminho_csv
+
 
 
 def upload_pasta_atributos():
@@ -260,73 +278,46 @@ def resultadoRede2():
 # Rotas de Upload e Processamento
 @bp.route('/upload_pasta_atributos', methods=['POST'])
 def upload_pasta_atributos():
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    pasta_upload = os.path.join(ARQUIVOSREDE1_DIR, f"upload_{timestamp}")
-    
-    atributos1_rgb = session.get('atributos1')  # Atributos da classe 1
-    atributos2_rgb = session.get('atributos2')  # Atributos da classe 2
-
-    atributos1_rgb, atributos2_rgb = obter_atributos_rgb_normalizados(request.form)
-    session['atributos1'] = atributos1_rgb
-    session['atributos2'] = atributos2_rgb
-
-
-    if not pasta_upload or not atributos1_rgb or not atributos1_rgb:
-        flash('Por favor, faça o upload das imagens e defina os atributos de cor!', 'error')
-        return redirect(url_for('routes.upload'))
     try:
-        # 1. Validar uploads e atributos
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pasta_upload = os.path.join(ARQUIVOSREDE1_DIR, f"upload_{timestamp}")
+        os.makedirs(pasta_upload, exist_ok=True)  # Criação única da pasta
+
         arquivos_classe1 = request.files.getlist('arquivos1[]')
         arquivos_classe2 = request.files.getlist('arquivos2[]')
 
-        # Verificar se arquivos foram enviados
-        if not arquivos_classe1 or not arquivos_classe2:
-            flash('Envie arquivos para ambas as classes!', 'error')
-            return redirect(url_for('routes.rede1'))
+        # Obtenção dos atributos RGB
+        atributos1_rgb, atributos2_rgb = obter_atributos_rgb_normalizados(request.form)
+        
+        # Armazenando as informações na sessão
+        session['atributos1'] = atributos1_rgb
+        session['atributos2'] = atributos2_rgb
+        session['ultimo_upload'] = pasta_upload
 
-        # 2. Criar estrutura de diretórios
-        pasta_upload = session.get('ultimo_upload')  # Caminho da última pasta de upload
-        os.makedirs(pasta_upload, exist_ok=True)
-
-        # 3. Salvar arquivos de forma segura com função reutilizável
+        # Salvar arquivos nas respectivas pastas
         salvar_arquivos(arquivos_classe1, os.path.join(pasta_upload, "Classe1"))
         salvar_arquivos(arquivos_classe2, os.path.join(pasta_upload, "Classe2"))
 
-        
-
-        # 5. Distribuir arquivos entre treinamento e teste com função reutilizável
+        # Distribuir arquivos entre treinamento e teste
         distribuir_arquivos_treinamento_teste(pasta_upload)
 
-        # Processar imagens de treinamento e gerar CSV
-        imagens_treinamento = []
-        for classe in ["Classe1", "Classe2"]:
-            pasta_classe = os.path.join(pasta_upload, classe)
-            imagens_treinamento.extend([  # Adiciona todos os arquivos de imagem da pasta
-                os.path.join(pasta_classe, f)
-                for f in os.listdir(pasta_classe)
-                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
-            ])
-
-
-        # Gerar o caminho do arquivo CSV
+        # Obter imagens do último upload
+        imagens_treinamento = obter_imagens_ultimo_upload()
         caminho_csv = os.path.join(ARQUIVOSREDE1_DIR, f"dados_{timestamp}.csv")
-
         caminho_csv = converter_imagens_para_csv(imagens_treinamento, atributos1_rgb, atributos2_rgb, caminho_csv)
 
-        # 7. Armazenar informações na sessão
+        # Salvando caminho CSV e pasta de teste na sessão
         session['caminho_csv'] = caminho_csv
         session['pasta_teste'] = os.path.join(pasta_upload, "teste")
+
+        # Exibir mensagem de sucesso
         flash('Arquivos processados com sucesso! Agora defina os parâmetros da rede.', 'success')
         return redirect(url_for('routes.variaveisRede1'))
 
     except Exception as e:
-        # Limpeza em caso de erro
-        #if 'pasta_upload' in locals() and os.path.exists(pasta_upload):
-         #   shutil.rmtree(pasta_upload)
-
+        # Exibir mensagem de erro caso ocorra
         flash(f'Erro no processamento: {str(e)}', 'error')
         return redirect(url_for('routes.variaveisRede1'))
-
 
 # Rota de Treinamento
 @bp.route('/treinar_rede', methods=['POST'])
@@ -337,6 +328,8 @@ def treinar_rede():
         neuronios = int(request.form.get('neuronios', 0))
         camadas = int(request.form.get('camadas', 0))
         
+        print(f"Epocas: {epocas}, Neuronios: {neuronios}, Camadas: {camadas}")
+
         if not all([epocas > 0, neuronios > 0, camadas > 0]):
             flash('Todos os parâmetros devem ser números positivos!', 'error')
             return redirect(url_for('routes.upload'))
@@ -356,14 +349,15 @@ def treinar_rede():
                 'atributo1_classe2', 'atributo2_classe2', 'atributo3_classe2',
                 'classe'
             ]
+            print(f"Colunas do DataFrame: {df.columns}")
             if not all(col in df.columns for col in colunas_esperadas):
                 flash('Estrutura de dados inválida. Por favor, refaça o upload das imagens.', 'error')
                 return redirect(url_for('routes.upload2'))
 
             X = df[colunas_esperadas[:-1]].values
             y = df['classe'].values - 1  # Classes de (1,2) para (0,1)
-            print(X)
-            print(y)
+            print(f"X: {X[:5]}")  # Primeiros 5 exemplos de X
+            print(f"y: {y[:5]}")
         except Exception as e:
             flash(f'Erro ao ler dados de treinamento: {str(e)}', 'error')
             return redirect(url_for('routes.upload3'))
