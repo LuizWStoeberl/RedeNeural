@@ -351,8 +351,11 @@ def treinar_rede():
         
         rede = RedeNeural1()
         resultado = rede.treinar(X, y, epocas, neuronios, camadas)
-        acc, cm = treinar_rede()
+        #acc, cm = treinar_rede()
         
+        acc = resultado['acuracia']  # ← Correto! Acessa a chave 'acuracia'
+        cm = resultado['matriz_confusao']
+    
         # 4. Salvar modelo e resultados
         rede.model.save('modelos_salvos/modelo_rede1.keras')  # Garante que o modelo é salvo
         novo_treinamento = Treinamento(
@@ -360,8 +363,8 @@ def treinar_rede():
             neuronios=neuronios,
             enlaces=camadas,
             resultado=f"Acurácia: {acc:.4f}",
-            matriz_confusao=str(resultado['matriz_confusao']),
-            data_treinamento=datetime.now()
+            #matriz_confusao=str(resultado['matriz_confusao']),
+            #data_treinamento=datetime.now()
         )
         db.session.add(novo_treinamento)
         db.session.commit()
@@ -369,7 +372,6 @@ def treinar_rede():
         # 5. Exibir resultados
         return render_template('resultadoRede1.html',
                             acuracia=f"{resultado['acuracia']:.2%}",
-                            matriz_confusao=resultado['matriz_confusao'].tolist(),
                             epocas=epocas,
                             neuronios=neuronios,
                             camadas=camadas)
