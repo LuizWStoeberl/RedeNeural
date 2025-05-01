@@ -1,15 +1,16 @@
 import pandas as pd
 import numpy as np
+import os
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
-<<<<<<< HEAD
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from models import db
 
-MODELO_SALVO_PATH = 'modelos_salvos/modelo_cnn.h5'
+MODELO_SALVO_PATH = 'modelos_salvos'
 os.makedirs('modelos_salvos', exist_ok=True)
 
 def get_ultimo_treinamento():
@@ -27,8 +28,8 @@ def encontrar_ultimo_upload(base_path='arquivosRede2'):
 def treinar_rede_neural_cnn():
     # 1. Localizar as pastas automaticamente
     pasta_base = encontrar_ultimo_upload()
-    caminho_treinamento = os.path.join(pasta_base, 'treinamento')
-    caminho_teste = os.path.join(pasta_base, 'teste')
+    caminho_treinamento = os.path.join(pasta_base, 'treinamento2')
+    caminho_teste = os.path.join(pasta_base, 'teste2')
 
     # 2. Configuração de pré-processamento
     tamanho_imagem = (150, 150)
@@ -98,7 +99,6 @@ def treinar_rede_neural_cnn():
     modelo_cnn.save(MODELO_SALVO_PATH)
 
     return acc, cm
-=======
 
 def treinar_rede_neural(caminho_csv, epocas=100, neuronios=64, camadas_ocultas=3):
     """Treina uma rede neural com os parâmetros especificados"""
@@ -144,4 +144,3 @@ def treinar_rede_neural(caminho_csv, epocas=100, neuronios=64, camadas_ocultas=3
         'camadas': camadas_ocultas,
         'history': history.history
     }
->>>>>>> 583778416cd6d0b10c6af7fe3d86fb3ee3aac280

@@ -5,8 +5,6 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 from PIL import Image
-import processar_imagem
-
 from models import Treinamento
 from models import db
 
@@ -27,6 +25,15 @@ def comparar_cores(cor_pixel, atributo, tolerancia=15):
     return (abs(r - r_atributo) <= tolerancia / 255.0 and
             abs(g - g_atributo) <= tolerancia / 255.0 and
             abs(b - b_atributo) <= tolerancia / 255.0)
+
+def encontrar_ultimo_upload(base_path='arquivosRede1'):
+    pastas = [p for p in os.listdir(base_path) if p.startswith('upload_')]
+    pastas.sort(reverse=True)  # A mais recente fica no topo
+    if not pastas:
+        raise ValueError("Nenhum upload encontrado.")
+    return os.path.join(base_path, pastas[0])
+
+ultimo_upload_caminho = encontrar_ultimo_upload()
 
 def processar_imagens():
     if not ultimo_upload_caminho:
