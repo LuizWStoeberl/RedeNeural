@@ -15,12 +15,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import pandas as pd
 from rede_neural1 import RedeNeural1
+from PIL import Image
 
 # Configurações
 bp = Blueprint("routes", __name__)
 
 ARQUIVOSREDE1_DIR = 'arquivosRede1'
 os.makedirs(ARQUIVOSREDE1_DIR, exist_ok=True)
+
 
 # Helpers
 
@@ -139,15 +141,19 @@ def processar_imagem(imagem_path, atributos1, atributos2):
         print(f"Erro ao processar {imagem_path}: {e}")
         return [0]*len(atributos1), [0]*len(atributos2)
 
-def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, caminho_csv="arquivos/tabela_cores.csv"):
+def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, caminho_csv):
     """Converte as imagens de treinamento para um CSV com suas características (contagem de pixels)."""
     resultados = []
+    
+    # Processar todas as imagens de treinamento
     for imagem_path in imagens_treinamento:
         contagem_classe1, contagem_classe2 = processar_imagem(imagem_path, atributos1, atributos2)
         soma1 = sum(contagem_classe1)
         soma2 = sum(contagem_classe2)
-        # Definir a classe como a que tiver mais pixels da cor correspondente
+        
+        # Definir a classe com mais pixels da cor correspondente
         classe = 1 if soma1 > soma2 else 2
+        
         # Adicionar as contagens e a classe à lista de resultados
         resultados.append(contagem_classe1 + contagem_classe2 + [classe])
     
@@ -155,11 +161,18 @@ def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, cami
     colunas = [f'atributo{i+1}_classe1' for i in range(3)] + \
               [f'atributo{i+1}_classe2' for i in range(3)] + ['classe']
     
-    # Criar o DataFrame e salvar no CSV
+    # Criar o DataFrame com os resultados
     df_resultados = pd.DataFrame(resultados, columns=colunas)
-    os.makedirs('arquivos', exist_ok=True)  # Garantir que o diretório existe
-    df_resultados.to_csv(caminho_csv, index=False)  # Salvar o arquivo CSV
+    
+    # Garantir que o diretório para salvar o CSV exista
+    os.makedirs(os.path.dirname(caminho_csv), exist_ok=True)
+    
+    # Salvar o DataFrame no arquivo CSV
+    df_resultados.to_csv(caminho_csv, index=False)
+    
+    # Retornar o caminho do arquivo CSV
     return caminho_csv
+
 
 def upload_pasta_atributos():
     try:
@@ -247,7 +260,6 @@ def resultadoRede2():
 # Rotas de Upload e Processamento
 @bp.route('/upload_pasta_atributos', methods=['POST'])
 def upload_pasta_atributos():
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     pasta_upload = os.path.join(ARQUIVOSREDE1_DIR, f"upload_{timestamp}")
     
@@ -258,10 +270,7 @@ def upload_pasta_atributos():
     session['atributos1'] = atributos1_rgb
     session['atributos2'] = atributos2_rgb
 
-     # Imprimir os valores para depuração
-    print(pasta_upload)
-    print(atributos1_rgb)
-    print(atributos1_rgb)
+
     if not pasta_upload or not atributos1_rgb or not atributos1_rgb:
         flash('Por favor, faça o upload das imagens e defina os atributos de cor!', 'error')
         return redirect(url_for('routes.upload'))
@@ -292,20 +301,21 @@ def upload_pasta_atributos():
         imagens_treinamento = []
         for classe in ["Classe1", "Classe2"]:
             pasta_classe = os.path.join(pasta_upload, classe)
-            imagens_treinamento.extend([
+            imagens_treinamento.extend([  # Adiciona todos os arquivos de imagem da pasta
                 os.path.join(pasta_classe, f)
                 for f in os.listdir(pasta_classe)
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
             ])
 
-        # Gerar o CSV com as características das imagens
+
+        # Gerar o caminho do arquivo CSV
         caminho_csv = os.path.join(ARQUIVOSREDE1_DIR, f"dados_{timestamp}.csv")
+
         caminho_csv = converter_imagens_para_csv(imagens_treinamento, atributos1_rgb, atributos2_rgb, caminho_csv)
-        
+
         # 7. Armazenar informações na sessão
         session['caminho_csv'] = caminho_csv
         session['pasta_teste'] = os.path.join(pasta_upload, "teste")
-
         flash('Arquivos processados com sucesso! Agora defina os parâmetros da rede.', 'success')
         return redirect(url_for('routes.variaveisRede1'))
 
@@ -329,48 +339,41 @@ def treinar_rede():
         
         if not all([epocas > 0, neuronios > 0, camadas > 0]):
             flash('Todos os parâmetros devem ser números positivos!', 'error')
-            return redirect(url_for('routes.variaveisRede1'))
+            return redirect(url_for('routes.upload'))
 
         # 2. Obter caminho do CSV da sessão
         caminho_csv = session.get('caminho_csv')
+        print("Caminho do CSV:", caminho_csv)
         if not caminho_csv or not os.path.exists(caminho_csv):
             flash('Dados de treinamento não encontrados. Por favor, faça o upload novamente.', 'error')
-            return redirect(url_for('routes.rede1'))
+            return redirect(url_for('routes.upload1'))
 
         # 3. Carregar e validar dataset
         try:
             df = pd.read_csv(caminho_csv)
-            
-            # Verificar se temos as 6 colunas de atributos (3 para cada classe) + classe
             colunas_esperadas = [
                 'atributo1_classe1', 'atributo2_classe1', 'atributo3_classe1',
                 'atributo1_classe2', 'atributo2_classe2', 'atributo3_classe2',
                 'classe'
             ]
-            
             if not all(col in df.columns for col in colunas_esperadas):
                 flash('Estrutura de dados inválida. Por favor, refaça o upload das imagens.', 'error')
-                return redirect(url_for('routes.rede1'))
-                
-            X = df[colunas_esperadas[:-1]].values  # Todas as colunas exceto a última
-            y = df['classe'].values - 1  # Converter classes (1,2) para (0,1)
+                return redirect(url_for('routes.upload2'))
 
+            X = df[colunas_esperadas[:-1]].values
+            y = df['classe'].values - 1  # Classes de (1,2) para (0,1)
+            print(X)
+            print(y)
         except Exception as e:
             flash(f'Erro ao ler dados de treinamento: {str(e)}', 'error')
-            return redirect(url_for('routes.rede1'))
+            return redirect(url_for('routes.upload3'))
 
         # 4. Treinar a rede neural
         try:
             rede = RedeNeural1()
-            resultado = rede.treinar(
-                X=X,
-                y=y,
-                epocas=epocas,
-                neuronios=neuronios,
-                camadas=camadas
-            )
+            resultado = rede.treinar(X=X, y=y, epocas=epocas, neuronios=neuronios, camadas=camadas)
 
-            # 5. Salvar resultados no banco de dados
+            # 5. Salvar no banco de dados
             novo_treinamento = Treinamento(
                 epocas=epocas,
                 neuronios=neuronios,
@@ -382,7 +385,6 @@ def treinar_rede():
             db.session.add(novo_treinamento)
             db.session.commit()
 
-            # 6. Preparar dados para exibição
             matriz_confusao = [
                 ["Classe Prevista 0", "Classe Prevista 1"],
                 ["Classe Real 0", resultado['matriz_confusao'][0][0]],
@@ -390,11 +392,11 @@ def treinar_rede():
             ]
 
             return render_template('resultadoRede1.html',
-                                acuracia=f"{resultado['acuracia']:.2%}",
-                                matriz_confusao=matriz_confusao,
-                                epocas=epocas,
-                                neuronios=neuronios,
-                                camadas=camadas)
+                                   acuracia=f"{resultado['acuracia']:.2%}",
+                                   matriz_confusao=matriz_confusao,
+                                   epocas=epocas,
+                                   neuronios=neuronios,
+                                   camadas=camadas)
 
         except Exception as e:
             db.session.rollback()
@@ -404,7 +406,7 @@ def treinar_rede():
     except ValueError:
         flash('Por favor, insira valores numéricos válidos!', 'error')
         return redirect(url_for('routes.resultadoRede1'))
-        
+
     except Exception as e:
         flash(f'Erro inesperado: {str(e)}', 'error')
         return redirect(url_for('routes.resultadoRede1'))
