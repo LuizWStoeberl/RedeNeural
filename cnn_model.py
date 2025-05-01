@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import tensorflow as tf
+from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
@@ -10,7 +11,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from models import db
 
-MODELO_SALVO_PATH = 'modelos_salvos'
+MODELO_SALVO_PATH = 'modelos_salvos/modelo_rede_neural.keras'
 os.makedirs('modelos_salvos', exist_ok=True)
 
 def get_ultimo_treinamento():
@@ -89,6 +90,14 @@ def treinar_rede_neural_cnn():
     acc = historico.history['accuracy'][-1]
 
     # (Confusion matrix opcional se quiser gerar depois via predict)
+    validation_generator = test_datagen.flow_from_directory(
+    caminho_teste,
+    target_size=tamanho_imagem,
+    batch_size=32,
+    class_mode='binary',
+    shuffle=False  # <- necessário
+)
+
     # Previsões no conjunto de validação
     y_true = validation_generator.classes
     y_pred = modelo_cnn.predict(validation_generator)
@@ -96,7 +105,8 @@ def treinar_rede_neural_cnn():
     cm = confusion_matrix(y_true, y_pred_classes)
 
     # 7. Salvar modelo
-    modelo_cnn.save(MODELO_SALVO_PATH)
+    modelo_cnn.save(os.path.join(MODELO_SALVO_PATH, 'modelo_cnn'))  # cria pasta com formato SavedModel
+
 
     return acc, cm
 
@@ -106,7 +116,7 @@ def treinar_rede_neural(caminho_csv, epocas=100, neuronios=64, camadas_ocultas=3
     # Carregar dados
     df = pd.read_csv(caminho_csv)
     X = df.drop('classe', axis=1).values
-    y = df['classe'].values - 1  # Converter para 0 e 1
+    y = LabelEncoder().fit_transform(df['classe'].values)
     
     # Dividir dados
     X_train, X_test, y_train, y_test = train_test_split(

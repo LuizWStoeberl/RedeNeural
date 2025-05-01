@@ -4,9 +4,10 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.preprocessing import LabelEncoder
 from models import Treinamento, db
 
-MODELO_SALVO_PATH = 'modelos_salvos/modelo_rede_neural.h5'
+MODELO_SALVO_PATH = 'modelos_salvos/modelo_rede_neural.keras'
 os.makedirs('modelos_salvos', exist_ok=True)
 
 def get_ultimo_treinamento():
@@ -25,7 +26,7 @@ def treinar_rede_neural():
 
     X = dataset.iloc[:, :-1].values
     y_raw = dataset.iloc[:, -1].values
-    y = (y_raw == y_raw[0])  # Convertendo para binário (True/False)
+    y = LabelEncoder().fit_transform(y_raw) # Convertendo para binário (True/False)
 
     config = get_ultimo_treinamento()
     if not config:
@@ -51,7 +52,7 @@ def treinar_rede_neural():
 
     # Compilação e Treinamento
     rede_neural.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    historico = rede_neural.fit(X_treinamento, y_treinamento, epochs=epocas, validation_split=0.1)
+    historico = rede_neural.fit(X_treinamento, y_treinamento, epochs=epocas, validation_split=0.1, verbose=0)
 
     # Avaliação
     previsoes = rede_neural.predict(X_teste)
