@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>Selecione um modelo treinado (Rede 2 - CNN)</h2>
+    
+    <!-- Formulário de seleção do modelo -->
+    <form method="POST" action="/selecionarRede2">
+        <select name="modelo_nome" required>
+            {% for modelo in modelos %}
+                <option value="{{ modelo.nome }}">{{ modelo.nome }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Selecionar Modelo</button>
+    </form>
+
+    <!-- Mostrar o modelo selecionado e o formulário de upload de imagem, se o modelo estiver selecionado -->
+    {% if modelo_selecionado %}
+    <h3>Modelo selecionado: {{ modelo_selecionado }}</h3>
+
+    <!-- Formulário para upload de imagem -->
+    <form method="POST" action="/classificar_rede2" enctype="multipart/form-data">
+        <label for="imagem">Selecione uma imagem para classificar:</label>
+        <input type="file" name="imagem" accept="image/*" required>
+        <button type="submit">Classificar Imagem</button>
+    </form>
+    {% endif %}
+
+    <a href="/">Voltar para o menu</a>
+</body>
+</html>

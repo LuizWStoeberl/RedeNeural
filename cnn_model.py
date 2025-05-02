@@ -14,7 +14,6 @@ import json
 from datetime import datetime
 
 # Caminho para salvar o modelo (arquivo .keras)
-MODELO_SALVO_PATH = 'modelos_salvos/modelo_cnn.keras'
 os.makedirs('modelos_salvos', exist_ok=True)
 
 def get_ultimo_treinamento():
@@ -29,12 +28,14 @@ def encontrar_ultimo_upload(base_path='arquivosRede2'):
     else:
         raise Exception("Nenhuma pasta de upload encontrada.")
 
-def carregar_modelo_cnn():
-    """Carrega o modelo CNN salvo"""
-    if os.path.exists(MODELO_SALVO_PATH):
-        return load_model(MODELO_SALVO_PATH)
-    else:
-        raise FileNotFoundError("Modelo CNN não encontrado.")
+def carregar_modelo_cnn_mais_recente():
+    """Carrega o modelo CNN salvo mais recente da pasta"""
+    modelos = [f for f in os.listdir('modelos_salvos') if f.startswith('cnn_model') and f.endswith('.h5')]
+    if not modelos:
+        raise FileNotFoundError("Nenhum modelo CNN encontrado.")
+    modelos.sort(reverse=True)
+    modelo_path = os.path.join('modelos_salvos', modelos[0])
+    return load_model(modelo_path)
 
 def treinar_rede_neural_cnn():
     try:
@@ -125,9 +126,14 @@ def treinar_rede_neural_cnn():
 
        # 7. Salvar modelo com timestamp no nome
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        modelo_path = f'modelos_salvos/cnn_model_{timestamp}.h5'
+        pasta_modelo = f'modelos_salvos/modelocnn_{timestamp}'
+        os.makedirs(pasta_modelo, exist_ok=True)
+
+        modelo_path = os.path.join(pasta_modelo, 'modelo.h5')
         modelo_cnn.save(modelo_path)
 
+        with open(os.path.join(pasta_modelo, 'classes.json'), 'w') as f:
+            json.dump(train_generator.class_indices, f)
         return {
             'acuracia': acc,
             'val_acuracia': val_acc,

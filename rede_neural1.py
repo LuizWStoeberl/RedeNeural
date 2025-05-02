@@ -27,23 +27,24 @@ class RedeNeural1:
 
     def _criar_modelo(self, input_shape, neuronios, camadas):
         model = Sequential()
-        # Primeira camada densa com a forma de entrada
-        model.add(Dense(neuronios, activation='relu', input_shape=input_shape))
-        
-        # Camadas ocultas
-        for _ in range(camadas - 1):
+
+        # Remover camadas convolucionais, já que o modelo agora trabalha com dados tabulares
+        model.add(Dense(neuronios, input_dim=input_shape, activation='relu'))  # Primeira camada densa
+
+        # Camadas ocultas densas
+        for _ in range(camadas):
             model.add(Dense(neuronios, activation='relu'))
-        
+
         # Camada de saída
-        model.add(Dense(1, activation='sigmoid'))
-        
+        model.add(Dense(1, activation='sigmoid'))  # Saída binária, ajuste conforme necessário
+
         # Compilação do modelo
         model.compile(
             optimizer=Adam(learning_rate=0.001),
             loss='binary_crossentropy',
             metrics=['accuracy']
         )
-        
+
         return model
 
     def treinar(self, X, y, epocas, neuronios, camadas):
@@ -61,7 +62,7 @@ class RedeNeural1:
         tf.keras.backend.clear_session()  # Limpa a sessão do TF
         
         # 4. Criar novo modelo
-        self.model = self._criar_modelo(X.shape[1:], neuronios, camadas)
+        self.model = self._criar_modelo(X.shape[1], neuronios, camadas)
         
         # 5. Callback para evitar treinamento prolongado
         early_stop = tf.keras.callbacks.EarlyStopping(
@@ -78,13 +79,19 @@ class RedeNeural1:
         )
         
         # 7. Salvar o modelo com timestamp no nome e garantir que a pasta exista
-        os.makedirs('modelos_salvos', exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        modelo_path = f'modelos_salvos/ecp_model_{timestamp}.h5'
+        pasta_modelo = os.path.join('modelos_salvos', f'modeloopp_{timestamp}')
+        os.makedirs(pasta_modelo, exist_ok=True)
+
+        modelo_path = os.path.join(pasta_modelo, 'modelo.h5')
         self.model.save(modelo_path)
 
         # Salvar classes (exemplo fixo)
         class_indices = {0: 'Classe 0', 1: 'Classe 1'}
+        with open(os.path.join(pasta_modelo, 'classes.json'), 'w') as f:
+            json.dump(class_indices, f)
+
+        # Salvar classes (exemplo fixo)
         with open(f'modelos_salvos/classes_{timestamp}.json', 'w') as f:
             json.dump(class_indices, f)
 

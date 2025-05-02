@@ -17,10 +17,16 @@ from sklearn.preprocessing import LabelEncoder
 from cnn_model import *
 import json 
 from tensorflow.keras.models import load_model
-
+from pathlib import Path
 
 # Configurações
 bp = Blueprint("routes", __name__)
+
+
+MODEL_PREFIXES = {
+    'OPP': 'modeloopp_',
+    'PADRAO': 'modelopp_'  # Ou outro prefixo para o segundo tipo
+}
 
 ARQUIVOSREDE1_DIR = 'arquivosRede1'
 os.makedirs(ARQUIVOSREDE1_DIR, exist_ok=True)
@@ -158,6 +164,10 @@ def processar_imagem(imagem_path, atributos1, atributos2):
         print(f"Erro ao processar {imagem_path}: {e}")
         return [0] * len(atributos1), [0] * len(atributos2)
 
+    except Exception as e:
+        print(f"Erro ao processar {imagem_path}: {e}")
+        return [0] * len(atributos1), [0] * len(atributos2)
+
 def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, caminho_csv):
     """Converte imagens de treinamento para CSV, tratando corretamente os atributos conforme a classe da imagem."""
     resultados = []
@@ -177,9 +187,6 @@ def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, cami
         contagem_classe1, contagem_classe2 = processar_imagem(imagem_path, atributos_classe1, atributos_classe2)
         soma1 = sum(contagem_classe1)
         soma2 = sum(contagem_classe2)
-
-        print(f"Imagem: {imagem_path}, Classe: {classe_real}, Contagem Classe 1: {contagem_classe1}, Contagem Classe 2: {contagem_classe2}")
-        print(f"Soma Classe 1: {soma1}, Soma Classe 2: {soma2}")
 
         # Atribuir a classe com base na soma maior
         if soma1 > soma2:
@@ -202,8 +209,8 @@ def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, cami
 
     return caminho_csv
 
+
 def classificar_imagem(modelo_id, imagem):
-    # Carregar o modelo e o mapeamento de classes
     modelo_path = f'modelos_salvos/modelo_{modelo_id}.h5'
     classes_path = f'modelos_salvos/classes_{modelo_id}.json'
     
@@ -217,13 +224,18 @@ def classificar_imagem(modelo_id, imagem):
     # Reverter o dicionário de classes
     index_to_class = {v: k for k, v in class_indices.items()}
     
-    # Processar a imagem (ajustar o tamanho da imagem de acordo com a rede)
-    img = tf.keras.preprocessing.image.load_img(imagem, target_size=(150, 150))
-    img_array = tf.keras.preprocessing.image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0) / 255.0
+    # Processar a imagem para extrair as características de cor (não a imagem bruta)
+    atributos1_rgb = session.get('atributos1')  # Carregar as cores da sessão
+    atributos2_rgb = session.get('atributos2')
+    
+    contagem_classe1, contagem_classe2 = processar_imagem(imagem, atributos1_rgb, atributos2_rgb)
+    
+    # Combinar as contagens das classes para gerar o vetor de características
+    caracteristicas = contagem_classe1 + contagem_classe2
+    caracteristicas = np.expand_dims(caracteristicas, axis=0)  # Ajuste para o formato correto (1, 6)
     
     # Fazer a predição
-    pred = modelo.predict(img_array)[0][0]
+    pred = modelo.predict(caracteristicas)[0][0]
     classe_idx = int(pred > 0.5)  # Ajuste para classificação binária
     classe_predita = index_to_class[classe_idx]
     
@@ -283,6 +295,128 @@ def obter_imagens_ultimo_upload():
     else:
         raise FileNotFoundError("Nenhum upload encontrado!")   
 
+def carregar_modelo_mais_recente():
+    """
+    Função para carregar o modelo mais recente da pasta 'modelos_salvos'
+    e retornar tanto o modelo quanto as classes associadas.
+    """
+    # Localização da pasta onde os modelos estão salvos
+    pasta_modelos = 'modelos_salvos'
+
+    # Listar todos os diretórios dentro de 'modelos_salvos' para pegar os modelos mais recentes
+    diretorios = sorted(
+        [d for d in os.listdir(pasta_modelos) if os.path.isdir(os.path.join(pasta_modelos, d))],
+        reverse=True  # Para garantir que o mais recente venha primeiro
+    )
+
+    if not diretorios:
+        raise FileNotFoundError("Nenhum modelo encontrado na pasta 'modelos_salvos'.")
+
+    # Pegando o diretório do modelo mais recente
+    modelo_dir = diretorios[0]
+
+    # Carregar o modelo treinado
+    modelo_path = os.path.join(pasta_modelos, modelo_dir, 'modelo.h5')
+    modelo = tf.keras.models.load_model(modelo_path)
+
+    # Verificar se o modelo foi carregado corretamente
+    if not modelo:
+        raise Exception("Erro ao carregar o modelo.")
+
+    # Carregar as classes do modelo
+    classes_path = os.path.join(pasta_modelos, modelo_dir, 'classes.json')
+    with open(classes_path, 'r') as f:
+        classes = json.load(f)
+
+    return modelo, classes
+
+
+def listar_modelos(tipo_rede):
+    pasta_modelos = 'modelos_salvos'
+    tipo_modelo_pasta = f"model{tipo_rede}"  # modelopp ou modelocnn
+    modelos = []
+
+    # Percorrer as subpastas da pasta principal de modelos_salvos
+    for root, dirs, files in os.walk(pasta_modelos):
+        for dir_name in dirs:
+            if tipo_modelo_pasta in dir_name:  # Verifica se é do tipo correto
+                modelos.append(dir_name)
+
+
+def extrair_atributos(imagem_array, atributos1, atributos2):
+    """
+    Extrai os atributos das classes comparando os pixels da imagem com os atributos fornecidos.
+    
+    :param imagem_array: A imagem processada em formato numpy (normalizada).
+    :param atributos1: Lista com os atributos da Classe1 (RGB normalizado).
+    :param atributos2: Lista com os atributos da Classe2 (RGB normalizado).
+    :return: Vetor com as contagens dos atributos das duas classes.
+    """
+    contagem_classe1 = [0] * len(atributos1)
+    contagem_classe2 = [0] * len(atributos2)
+
+    # Percorrer os pixels da imagem
+    for linha in imagem_array:
+        for pixel in linha:
+            r, g, b = pixel
+
+            # Verificar atributos da Classe1
+            for i, attr in enumerate(atributos1):
+                if comparar_cores((r, g, b), attr):  # Função comparar_cores já normaliza as cores
+                    contagem_classe1[i] += 1
+                    break  # Já contou para a Classe1
+
+            # Se não for Classe1, verificar para a Classe2
+            for j, attr in enumerate(atributos2):
+                if comparar_cores((r, g, b), attr):
+                    contagem_classe2[j] += 1
+                    break  # Já contou para a Classe2
+
+    # Retorna o vetor com as contagens de atributos das duas classes
+    return contagem_classe1 + contagem_classe2
+
+def carregar_modelo(modelo_nome):
+    try:
+        # Determinar tipo de modelo
+        if modelo_nome.startswith('modeloopp_'):
+            tipo = 'OPP'
+        elif modelo_nome.startswith('modelopp_'):
+            tipo = 'PADRAO'
+        else:
+            raise ValueError("Prefixo do modelo não reconhecido")
+
+        # Caminhos dos arquivos
+        base_path = os.path.join('modelos_salvos', modelo_nome)
+        modelo_path = os.path.join(base_path, 'modelo.h5')
+        classes_path = os.path.join(base_path, 'classes.json')
+
+        # Verificar existência
+        if not os.path.exists(modelo_path):
+            raise FileNotFoundError(f"Modelo não encontrado: {modelo_path}")
+        if not os.path.exists(classes_path):
+            raise FileNotFoundError(f"Classes não encontradas: {classes_path}")
+
+        # Carregar componentes
+        modelo = tf.keras.models.load_model(modelo_path)
+        with open(classes_path, 'r') as f:
+            classes = json.load(f)
+
+        # Carregar atributos adicionais para OPP
+        if tipo == 'OPP':
+            atributos_path = os.path.join(base_path, 'atributos.json')
+            if os.path.exists(atributos_path):
+                with open(atributos_path, 'r') as f:
+                    atributos = json.load(f)
+                    session['atributos1'] = atributos.get('atributos1', [])
+                    session['atributos2'] = atributos.get('atributos2', [])
+
+        return modelo, classes
+
+    except Exception as e:
+        print(f"Erro ao carregar modelo {modelo_nome}: {str(e)}")
+        raise
+
+
 # Rotas simples
 @bp.route("/")
 def home():
@@ -308,10 +442,24 @@ def variaveisRede2():
 def resultadoRede():
     return render_template("resultadoRede.html")
 
+@bp.route("/escolherModelo.html")
+def escolherModelo():
+    return render_template("escolherModelo.html")
 
-@bp.route("/selecionarModelos.html")
-def selecionarModelos():
-    return render_template("selecionarModelos.html")
+@bp.route('/selecionarModelos', methods=['GET'])
+def selecionar_modelos_opp():
+    # Seleciona os modelos para a rede "opp"
+    modelos_rede_opp = carregar_modelo("opp")  # Para Rede 1 (modelopp)
+    # Passa os modelos para o template
+    return render_template('selecionarModelos.html', modelos_rede=modelos_rede_opp)  # Corrigido
+
+@bp.route('/selecionarModelos2', methods=['GET'])
+def selecionar_modelos_cnn():
+    # Seleciona os modelos para a rede "cnn"
+    modelos_rede_cnn = carregar_modelo("cnn")  # Para Rede 2 (modelocnn)
+    # Passa os modelos para o template
+    return render_template('selecionarModelos2.html', modelos_rede=modelos_rede_cnn)  # Corrigido
+
 
 @bp.route("/usarModelo.html")
 def usarModelo():
@@ -423,7 +571,7 @@ def treinar_rede():
 
 
 
-# Rotas para Rede Neural 2 (mantidas inalteradas para brevidade)
+# Rotas para Rede Neural 2 
 @bp.route('/upload', methods=['POST'])
 def upload():
     num_pastas = int(request.form['num_pastas'])
@@ -495,6 +643,26 @@ def enviar2():
         novo_treinamento.matriz_confusao = str(resultado['matriz_confusao'])
         db.session.commit()
         
+        # Após salvar o modelo, você já tem o valor de acurácia:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        modelo_path = f'modelos_salvos/{timestamp}/modelo.h5'
+        
+        # Agora, crie o diretório para armazenar o modelo e a acurácia
+        os.makedirs(os.path.dirname(modelo_path), exist_ok=True)
+        
+
+        # Agora salve a acurácia em um arquivo info.json dentro da mesma pasta
+        info = {
+            'acuracia': resultado['acuracia'],
+            'val_acuracia': resultado['val_acuracia'],  # Adicionando a acurácia de validação também
+            'epocas': epocas,
+            'neuronios': neuronios,
+            'camadas': camadas
+        }
+
+        with open(f'modelos_salvos/{timestamp}/info.json', 'w') as f:
+            json.dump(info, f)
+
         return render_template('resultadoRede.html',
                             acuracia=resultado['acuracia'],
                             val_acuracia=resultado['val_acuracia'],
@@ -503,7 +671,7 @@ def enviar2():
                             neuronios=neuronios,
                             camadas=camadas)
 
-
+            
     except Exception as e:
         flash(f'Erro ao treinar a CNN: {str(e)}', 'erro')
         return redirect(url_for('routes.variaveisRede2'))
@@ -545,85 +713,186 @@ def classificar_imagem():
         return jsonify({"erro": str(e)}), 400
 
 
-# ROTAS BANCO DE DADOS
-
-
-
 @bp.route('/selecionarModelos', methods=['GET', 'POST'])
 def selecionar_modelo():
+    modelos = []
+    modelos_dir = 'modelos_salvos'
+    
+    try:
+        # Verificar se o diretório de modelos existe
+        if not os.path.exists(modelos_dir):
+            flash("Diretório de modelos não encontrado", "error")
+            return render_template('selecionarModelos.html', modelos=modelos)
+
+        # Listar todos os modelos válidos
+        for item in os.listdir(modelos_dir):
+            item_path = os.path.join(modelos_dir, item)
+            
+            # Verificar se é um diretório e contém os arquivos necessários
+            if os.path.isdir(item_path):
+                has_model = any(f.endswith(('.h5', '.keras')) for f in os.listdir(item_path))
+                has_classes = any(f.endswith('.json') and 'classes' in f.lower() for f in os.listdir(item_path))
+                
+                if has_model and has_classes:
+                    # Determinar o tipo do modelo
+                    model_type = 'OPP' if item.startswith('modeloopp_') else 'CNN' if item.startswith('modelopp_') else 'OUTRO'
+                    
+                    model_info = {
+                        'nome': item,
+                        'tipo': model_type,
+                        'timestamp': item.split('_')[-1],
+                        'data_criacao': datetime.fromtimestamp(
+                            os.path.getctime(item_path)
+                        ).strftime('%Y-%m-%d %H:%M:%S'),
+                        'caminho': item_path
+                    }
+                    modelos.append(model_info)
+
+        # Ordenar por timestamp
+        modelos.sort(key=lambda x: x['timestamp'], reverse=True)
+
+        if request.method == 'POST':
+            modelo_selecionado = request.form.get('modelo_nome')
+            selected_model = next((m for m in modelos if m['nome'] == modelo_selecionado), None)
+            
+            if selected_model:
+                session['modelo_selecionado'] = selected_model['nome']
+                session['modelo_tipo'] = selected_model['tipo']
+                session['modelo_path'] = selected_model['caminho']
+                flash(f"Modelo {selected_model['nome']} selecionado com sucesso!", "success")
+                return redirect(url_for('routes.selecionar_modelo'))
+            else:
+                flash("Modelo selecionado inválido", "error")
+
+        return render_template('selecionarModelos.html', 
+                            modelos=modelos,
+                            tipos_modelos=set(m['tipo'] for m in modelos))
+
+    except Exception as e:
+        flash(f"Erro ao listar modelos: {str(e)}", "error")
+        return render_template('selecionarModelos.html', modelos=[])
+
+
+@bp.route('/selecionarRede2', methods=['GET', 'POST'])
+def selecionar_modelo_rede2():
     diretorio_modelos = 'modelos_salvos'
     modelos = []
 
-    # Carrega os arquivos .h5 no diretório
-    for nome_arquivo in os.listdir(diretorio_modelos):
-        if nome_arquivo.endswith('.h5'):
-            timestamp = nome_arquivo.split('_')[-1].replace('.h5', '')
-            modelos.append({
-                'nome': nome_arquivo,
-                'timestamp': timestamp,
-                'acuracia': "90%"  # Coloque a acurácia correta se tiver salva
-            })
+    for nome_pasta in os.listdir(diretorio_modelos):
+        if not nome_pasta.startswith("modelocnn_"):
+            continue  # ignora os modelos que não são da rede 2
 
-    modelo_selecionado = request.form.get('modelo_nome') if request.method == 'POST' else None
+        caminho_pasta = os.path.join(diretorio_modelos, nome_pasta)
+        if os.path.isdir(caminho_pasta):
+            modelo_path = os.path.join(caminho_pasta, 'modelo.h5')
+            if os.path.exists(modelo_path):
+                modelos.append({'nome': nome_pasta})
 
-    return render_template('selecionarModelos.html', modelos=modelos, modelo_selecionado=modelo_selecionado)
+    modelo_selecionado = None
+    if request.method == 'POST':
+        modelo_selecionado = request.form.get('modelo_nome')
+        print(f"Modelo selecionado: {modelo_selecionado}")  # Debug: verifique se o nome do modelo está correto
+        session['modelo_selecionado'] = modelo_selecionado
+        return redirect(url_for('routes.selecionar_modelo_rede2'))  # Redireciona para a mesma página para atualizar a seleção
+
+    # Quando o método for GET, renderiza a página com o modelo
+    return render_template('selecionarModelos2.html', modelos=modelos, modelo_selecionado=session.get('modelo_selecionado'))
 
 
-@bp.route('/classificar', methods=['GET', 'POST'])
-def classificar_imagem_usuario():
-    # Verifica se os campos obrigatórios foram enviados
-    if 'modelo_nome' not in request.form:
-        return jsonify({"erro": "Campo 'modelo_nome' faltando"}), 400
-    
+@bp.route('/classificar_rede1', methods=['POST'])
+def classificar_rede1():
+    # Validação inicial
     if 'imagem' not in request.files:
-        return jsonify({"erro": "Nenhuma imagem enviada"}), 400
+        return render_template('erro.html', mensagem="Arquivo de imagem não enviado."), 400
+    
+    arquivo = request.files['imagem']
+    if arquivo.filename == '':
+        return render_template('erro.html', mensagem="Nenhuma imagem selecionada."), 400
 
-    # Obtém os dados do formulário
-    modelo_nome = request.form['modelo_nome']
-    imagem = request.files['imagem']
-
-    # Verifica se o arquivo tem um nome válido
-    if imagem.filename == '':
-        return jsonify({"erro": "Nome de arquivo inválido"}), 400
+    modelo_selecionado = session.get('modelo_selecionado')
+    if not modelo_selecionado or not modelo_selecionado.startswith('modeloopp_'):
+        return render_template('erro.html', mensagem="Modelo OPP não selecionado ou inválido."), 400
 
     try:
-        # Caminhos dos arquivos (modelo e classes)
-        caminho_modelo = os.path.join('modelos_salvos', modelo_nome)
-        nome_base = modelo_nome.replace('.h5', '').replace('.keras', '')
-        timestamp = nome_base.split('_')[-1]
-        caminho_classes = os.path.join('modelos_salvos', f'classes_{timestamp}.json')
-
-        # Verifica se os arquivos existem
-        if not os.path.exists(caminho_modelo):
-            return jsonify({"erro": f"Modelo não encontrado: {modelo_nome}"}), 404
+        # Carregar modelo e classes
+        modelo, classes = carregar_modelo(modelo_selecionado)
         
-        if not os.path.exists(caminho_classes):
-            return jsonify({"erro": f"Arquivo de classes não encontrado para o modelo: {modelo_nome}"}), 404
+        # Verificar atributos necessários
+        atributos1 = session.get('atributos1')
+        atributos2 = session.get('atributos2')
+        if not atributos1 or not atributos2:
+            raise Exception("Atributos de cores não encontrados na sessão.")
 
-        # Salva a imagem temporariamente
-        os.makedirs('uploads_temp', exist_ok=True)
-        caminho_temp = os.path.join('uploads_temp', secure_filename(imagem.filename))
-        imagem.save(caminho_temp)
+        # Processamento específico para Rede 1 (OPP)
+        temp_path = os.path.join('temp_uploads', secure_filename(arquivo.filename))
+        arquivo.save(temp_path)
+        
+        # Extrair atributos específicos para OPP
+        contagem_classe1, contagem_classe2 = processar_imagem(temp_path, atributos1, atributos2)
+        atributos_extraidos = np.array(contagem_classe1 + contagem_classe2).reshape(1, -1)
+        
+        # Classificação
+        pred = modelo.predict(atributos_extraidos)[0][0]
+        classe_predita = 1 if pred > 0.5 else 0
+        nome_classe = classes.get(str(classe_predita), f'Classe {classe_predita}')
+        
+        # Resultados adicionais para OPP
+        porcentagem_classe1 = (contagem_classe1 / sum(contagem_classe1 + contagem_classe2)) * 100
+        porcentagem_classe2 = 100 - porcentagem_classe1
 
-        # Carrega o modelo e as classes
-        modelo = load_model(caminho_modelo)  # Aqui, certifique-se de que 'load_model' está correto
-        with open(caminho_classes, 'r') as f:
-            class_indices = json.load(f)
+        # Limpeza
+        os.remove(temp_path)
 
-        # Pré-processa a imagem e faz a predição
-        img = tf.keras.preprocessing.image.load_img(caminho_temp, target_size=(150, 150))
-        img_array = tf.keras.preprocessing.image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0) / 255.0
+        return render_template('resultado_classificacao_rede1.html',
+                            nome_classe=nome_classe,
+                            classe_predita=classe_predita,
+                            porcentagem_classe1=f"{porcentagem_classe1:.2f}%",
+                            porcentagem_classe2=f"{porcentagem_classe2:.2f}%",
+                            atributos_utilizados=atributos1+atributos2)
 
-        pred = modelo.predict(img_array)[0][0]
-        classe_idx = int(pred > 0.5)  # Adapte para multiclasse se necessário
-        classe_predita = class_indices.get(str(classe_idx), "classe_desconhecida")
-
-        # Remove o arquivo temporário
-        os.remove(caminho_temp)
-
-        # Retorna APENAS a classe prevista (em formato texto ou JSON)
-        return jsonify({"classe": classe_predita})  # Ou return classe_predita (texto puro)
-    
     except Exception as e:
-        return jsonify({"erro": f"Erro durante a classificação: {str(e)}"}), 500
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
+        return render_template('erro.html', mensagem=f"Erro na classificação OPP: {str(e)}"), 500
+
+@bp.route('/classificar_rede2', methods=['POST'])
+def classificar_rede2():
+    # Validação inicial
+    if 'imagem' not in request.files:
+        return render_template('erro.html', mensagem="Arquivo de imagem não enviado."), 400
+    
+    arquivo = request.files['imagem']
+    if arquivo.filename == '':
+        return render_template('erro.html', mensagem="Nenhuma imagem selecionada."), 400
+
+    modelo_selecionado = session.get('modelo_selecionado')
+    if not modelo_selecionado or not modelo_selecionado.startswith('modelopp_'):
+        return render_template('erro.html', mensagem="Modelo padrão não selecionado ou inválido."), 400
+
+    try:
+        # Carregar modelo e classes
+        modelo, classes = carregar_modelo(modelo_selecionado)
+        
+        # Processamento de imagem padrão
+        img = Image.open(arquivo).convert('RGB')
+        img = img.resize((150, 150))  # Ajustar conforme necessidade do modelo
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+
+        # Classificação
+        pred = modelo.predict(img_array)[0][0]
+        classe_predita = 1 if pred > 0.5 else 0
+        nome_classe = classes.get(str(classe_predita), f'Classe {classe_predita}')
+        
+        # Probabilidade de confiança
+        probabilidade = pred if classe_predita == 1 else (1 - pred)
+        
+        return render_template('resultado_classificacao_rede2.html',
+                            nome_classe=nome_classe,
+                            classe_predita=classe_predita,
+                            confianca=f"{probabilidade*100:.2f}%",
+                            modelo_utilizado=modelo_selecionado)
+
+    except Exception as e:
+        return render_template('erro.html', mensagem=f"Erro na classificação padrão: {str(e)}"), 500
+    

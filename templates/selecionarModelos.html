@@ -1,32 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 </head>
-
 <body>
-    <h1>Selecione um Modelo Treinado e Classifique uma Imagem</h1>
-
-    {% if modelos %}
-    <form method="POST" action="/classificar" enctype="multipart/form-data">
-        <label for="modelo_nome">Nome do modelo:</label>
+    <h2>Selecione um modelo treinado (Rede 1 - OPP)</h2>
+    
+    <!-- Formulário de seleção do modelo -->
+    <form method="POST" action="/selecionarRede2">
+        <label for="modelo_nome">Modelos disponíveis:</label>
         <select name="modelo_nome" required>
             {% for modelo in modelos %}
-            <option value="{{ modelo.nome }}">{{ modelo.nome }}</option>
+                    <option value="{{ modelo.nome }}">{{ modelo.nome }}</option>
             {% endfor %}
-        </select><br><br>
-    
-        <label for="imagem">Escolha uma imagem:</label>
-        <input type="file" name="imagem" accept="image/*" required><br><br>
-    
-        <button type="submit">Classificar Imagem</button>
+        </select>
+        <button type="submit">Selecionar Modelo</button>
     </form>
-    {% else %}
-        <p>Não há modelos disponíveis.</p>
-    {% endif %}
-</body>
 
+    <!-- Mostrar o modelo selecionado e o formulário de upload de imagem -->
+    {% if modelo_selecionado %}
+    <div class="modelo-selecionado">
+        <h3>Modelo selecionado: {{ modelo_selecionado }}</h3>
+
+        <!-- Formulário para upload de imagem -->
+        <form method="POST" action="/classificar_rede1" enctype="multipart/form-data">
+            <label for="imagem">Selecione uma imagem para classificar:</label>
+            <input type="file" name="imagem" accept="image/*" required>
+            <button type="submit">Classificar Imagem</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <a href="/">Voltar para o menu</a>
+</body>
 </html>

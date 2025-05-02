@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>Qual rede você deseja escolher:</h1>
+    <div>
+        <!-- Formulário para a Rede 1 -->
+        <form method="POST" action="/selecionarModelos">
+            <input type="hidden" name="rede" value="rede1">  <!-- Valor para indicar rede 1 -->
+            <button type="submit">
+                Modelos da rede 1 - Leitura por pixel
+            </button>
+        </form>
+
+        <!-- Formulário para a Rede 2 -->
+        <a href="selecionarRede2">
+            <input type="hidden" name="rede" value="rede2">  <!-- Valor para indicar rede 2 -->
+            <button type="submit">
+                Modelos da rede 2 - CNN
+            </button>
+        </a>
+    </div>
+</body>
+</html>
