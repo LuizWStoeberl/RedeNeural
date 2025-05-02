@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <h1>Selecione um Modelo Treinado e Classifique uma Imagem</h1>
+
+    {% if modelos %}
+    <form method="POST" action="/classificar" enctype="multipart/form-data">
+        <label for="modelo_nome">Nome do modelo:</label>
+        <select name="modelo_nome" required>
+            {% for modelo in modelos %}
+            <option value="{{ modelo.nome }}">{{ modelo.nome }}</option>
+            {% endfor %}
+        </select><br><br>
+    
+        <label for="imagem">Escolha uma imagem:</label>
+        <input type="file" name="imagem" accept="image/*" required><br><br>
+    
+        <button type="submit">Classificar Imagem</button>
+    </form>
+    {% else %}
+        <p>Não há modelos disponíveis.</p>
+    {% endif %}
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-from flask import Blueprint,request, redirect, url_for, render_template, flash, session
+from flask import Blueprint,request, redirect, url_for, render_template, flash, session, Flask, jsonify
 import random
 import shutil
 import time
@@ -7,9 +7,6 @@ from models import *
 from datetime import datetime
 import os
 import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
 from werkzeug.utils import secure_filename
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
@@ -18,6 +15,8 @@ from rede_neural1 import RedeNeural1
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 from cnn_model import *
+import json 
+from tensorflow.keras.models import load_model
 
 
 # Configurações
@@ -28,6 +27,13 @@ os.makedirs(ARQUIVOSREDE1_DIR, exist_ok=True)
 
 UPLOAD_FOLDER = 'arquivosRede2'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+diretorio_modelos = 'modelos_salvos'
+for arquivo in os.listdir(diretorio_modelos):
+    if arquivo.endswith('.h5') or arquivo.endswith('.keras'):
+        caminho_modelo = os.path.join(diretorio_modelos, arquivo)
+        modelo = load_model(caminho_modelo)
+        break
 
 # Helpers
 
@@ -196,7 +202,32 @@ def converter_imagens_para_csv(imagens_treinamento, atributos1, atributos2, cami
 
     return caminho_csv
 
-
+def classificar_imagem(modelo_id, imagem):
+    # Carregar o modelo e o mapeamento de classes
+    modelo_path = f'modelos_salvos/modelo_{modelo_id}.h5'
+    classes_path = f'modelos_salvos/classes_{modelo_id}.json'
+    
+    # Carregar o modelo
+    modelo = tf.keras.models.load_model(modelo_path)
+    
+    # Carregar o mapeamento de classes
+    with open(classes_path, 'r') as f:
+        class_indices = json.load(f)
+    
+    # Reverter o dicionário de classes
+    index_to_class = {v: k for k, v in class_indices.items()}
+    
+    # Processar a imagem (ajustar o tamanho da imagem de acordo com a rede)
+    img = tf.keras.preprocessing.image.load_img(imagem, target_size=(150, 150))
+    img_array = tf.keras.preprocessing.image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0) / 255.0
+    
+    # Fazer a predição
+    pred = modelo.predict(img_array)[0][0]
+    classe_idx = int(pred > 0.5)  # Ajuste para classificação binária
+    classe_predita = index_to_class[classe_idx]
+    
+    return classe_predita
 
 def upload_pasta_atributos():
     try:
@@ -273,13 +304,18 @@ def variaveisRede1():
 def variaveisRede2():
     return render_template("variaveisRede2.html")
 
-@bp.route("/resultadoRede1.html")
-def resultadoRede1():
-    return render_template("resultadoRede1.html")
+@bp.route("/resultadoRede.html")
+def resultadoRede():
+    return render_template("resultadoRede.html")
 
-@bp.route("/resultadoRede2.html")
-def resultadoRede2():
-    return render_template("resultadoRede2.html")
+
+@bp.route("/selecionarModelos.html")
+def selecionarModelos():
+    return render_template("selecionarModelos.html")
+
+@bp.route("/usarModelo.html")
+def usarModelo():
+    return render_template("usarModelo.html")
 
 # Rotas de Upload e Processamento
 @bp.route('/upload_pasta_atributos', methods=['POST'])
@@ -374,7 +410,7 @@ def treinar_rede():
         db.session.commit()
 
         # 5. Exibir resultados
-        return render_template('resultadoRede1.html',
+        return render_template('resultadoRede.html',
                             acuracia=f"{resultado['acuracia']:.2%}",
                             epocas=epocas,
                             neuronios=neuronios,
@@ -459,18 +495,20 @@ def enviar2():
         novo_treinamento.matriz_confusao = str(resultado['matriz_confusao'])
         db.session.commit()
         
-        return render_template('resultadoRede2.html',
+        return render_template('resultadoRede.html',
                             acuracia=resultado['acuracia'],
                             val_acuracia=resultado['val_acuracia'],
                             matriz_confusao=resultado['matriz_confusao'],
                             epocas=epocas,
                             neuronios=neuronios,
                             camadas=camadas)
+
+
     except Exception as e:
         flash(f'Erro ao treinar a CNN: {str(e)}', 'erro')
         return redirect(url_for('routes.variaveisRede2'))
 
-@bp.route('/classificar-imagem', methods=['POST'])
+@bp.route('/classificar_imagem', methods=['POST'])
 def classificar_imagem():
     try:
         arquivo = request.files['imagem']
@@ -509,30 +547,83 @@ def classificar_imagem():
 
 # ROTAS BANCO DE DADOS
 
-@bp.route('/modelos', methods=['GET'])
-def listar_modelos():
-    modelos = ModeloTreinado.query.all()
-    lista = []
-    for modelo in modelos:
-        lista.append({
-            'id': modelo.id,
-            'nome': modelo.nome_modelo,
-            'tipo': modelo.tipo_modelo,
-            'data': modelo.data_treinamento.strftime('%Y-%m-%d %H:%M:%S'),
-            'resultado': modelo.resultado
-        })
-    return jsonify(lista)
 
-@bp.route('/selecionar_modelo', methods=['POST'])
+
+@bp.route('/selecionarModelos', methods=['GET', 'POST'])
 def selecionar_modelo():
-    dados = request.json
-    id_modelo = dados.get('id_modelo')
+    diretorio_modelos = 'modelos_salvos'
+    modelos = []
 
-    modelo = ModeloTreinado.query.get(id_modelo)
-    if not modelo:
-        return jsonify({'erro': 'Modelo não encontrado'}), 404
+    # Carrega os arquivos .h5 no diretório
+    for nome_arquivo in os.listdir(diretorio_modelos):
+        if nome_arquivo.endswith('.h5'):
+            timestamp = nome_arquivo.split('_')[-1].replace('.h5', '')
+            modelos.append({
+                'nome': nome_arquivo,
+                'timestamp': timestamp,
+                'acuracia': "90%"  # Coloque a acurácia correta se tiver salva
+            })
 
-    return jsonify({
-        'caminho_modelo': modelo.caminho_modelo,
-        'nome_modelo': modelo.nome_modelo
-    })
+    modelo_selecionado = request.form.get('modelo_nome') if request.method == 'POST' else None
+
+    return render_template('selecionarModelos.html', modelos=modelos, modelo_selecionado=modelo_selecionado)
+
+
+@bp.route('/classificar', methods=['GET', 'POST'])
+def classificar_imagem_usuario():
+    # Verifica se os campos obrigatórios foram enviados
+    if 'modelo_nome' not in request.form:
+        return jsonify({"erro": "Campo 'modelo_nome' faltando"}), 400
+    
+    if 'imagem' not in request.files:
+        return jsonify({"erro": "Nenhuma imagem enviada"}), 400
+
+    # Obtém os dados do formulário
+    modelo_nome = request.form['modelo_nome']
+    imagem = request.files['imagem']
+
+    # Verifica se o arquivo tem um nome válido
+    if imagem.filename == '':
+        return jsonify({"erro": "Nome de arquivo inválido"}), 400
+
+    try:
+        # Caminhos dos arquivos (modelo e classes)
+        caminho_modelo = os.path.join('modelos_salvos', modelo_nome)
+        nome_base = modelo_nome.replace('.h5', '').replace('.keras', '')
+        timestamp = nome_base.split('_')[-1]
+        caminho_classes = os.path.join('modelos_salvos', f'classes_{timestamp}.json')
+
+        # Verifica se os arquivos existem
+        if not os.path.exists(caminho_modelo):
+            return jsonify({"erro": f"Modelo não encontrado: {modelo_nome}"}), 404
+        
+        if not os.path.exists(caminho_classes):
+            return jsonify({"erro": f"Arquivo de classes não encontrado para o modelo: {modelo_nome}"}), 404
+
+        # Salva a imagem temporariamente
+        os.makedirs('uploads_temp', exist_ok=True)
+        caminho_temp = os.path.join('uploads_temp', secure_filename(imagem.filename))
+        imagem.save(caminho_temp)
+
+        # Carrega o modelo e as classes
+        modelo = load_model(caminho_modelo)  # Aqui, certifique-se de que 'load_model' está correto
+        with open(caminho_classes, 'r') as f:
+            class_indices = json.load(f)
+
+        # Pré-processa a imagem e faz a predição
+        img = tf.keras.preprocessing.image.load_img(caminho_temp, target_size=(150, 150))
+        img_array = tf.keras.preprocessing.image.img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0) / 255.0
+
+        pred = modelo.predict(img_array)[0][0]
+        classe_idx = int(pred > 0.5)  # Adapte para multiclasse se necessário
+        classe_predita = class_indices.get(str(classe_idx), "classe_desconhecida")
+
+        # Remove o arquivo temporário
+        os.remove(caminho_temp)
+
+        # Retorna APENAS a classe prevista (em formato texto ou JSON)
+        return jsonify({"classe": classe_predita})  # Ou return classe_predita (texto puro)
+    
+    except Exception as e:
+        return jsonify({"erro": f"Erro durante a classificação: {str(e)}"}), 500

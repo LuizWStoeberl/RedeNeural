@@ -5,6 +5,9 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
+import json
+from datetime import datetime
+import os
 
 class RedeNeural1:
     def __init__(self):
@@ -74,9 +77,17 @@ class RedeNeural1:
             verbose=1
         )
         
-        # 7. Salvar o modelo
-        self.model.save('modelo.h5')
-        
+        # 7. Salvar o modelo com timestamp no nome e garantir que a pasta exista
+        os.makedirs('modelos_salvos', exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        modelo_path = f'modelos_salvos/ecp_model_{timestamp}.h5'
+        self.model.save(modelo_path)
+
+        # Salvar classes (exemplo fixo)
+        class_indices = {0: 'Classe 0', 1: 'Classe 1'}
+        with open(f'modelos_salvos/classes_{timestamp}.json', 'w') as f:
+            json.dump(class_indices, f)
+
         y_pred = (self.model.predict(X_test) > 0.5).astype(int)
         acc = accuracy_score(y_test, y_pred)
         cm = confusion_matrix(y_test, y_pred)

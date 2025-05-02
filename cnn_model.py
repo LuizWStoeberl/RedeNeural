@@ -10,6 +10,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from models import db
+import json
+from datetime import datetime
 
 # Caminho para salvar o modelo (arquivo .keras)
 MODELO_SALVO_PATH = 'modelos_salvos/modelo_cnn.keras'
@@ -100,6 +102,9 @@ def treinar_rede_neural_cnn():
             validation_data=validation_generator
         )
 
+        with open(f'modelos_salvos/classes_{config.id}.json', 'w') as f:
+            json.dump(train_generator.class_indices, f)
+
         # 6. Avaliação
         acc = historico.history['accuracy'][-1]
         val_acc = historico.history['val_accuracy'][-1]
@@ -118,8 +123,10 @@ def treinar_rede_neural_cnn():
         y_pred_classes = (y_pred > 0.5).astype("int32")
         cm = confusion_matrix(y_true, y_pred_classes)
 
-        # 7. Salvar modelo
-        modelo_cnn.save(MODELO_SALVO_PATH)
+       # 7. Salvar modelo com timestamp no nome
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        modelo_path = f'modelos_salvos/cnn_model_{timestamp}.h5'
+        modelo_cnn.save(modelo_path)
 
         return {
             'acuracia': acc,
